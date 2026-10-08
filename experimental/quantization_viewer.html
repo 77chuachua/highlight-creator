@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>量化曲线查看器</title>
+<style>
+  body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; margin: 0;
+         background: #14171c; color: #e8eaf0; }
+  header { padding: 14px 20px; background: #1c2129; display: flex;
+           align-items: center; gap: 14px; position: sticky; top: 0; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  #openBtn { background: #2f6fed; color: #fff; border: 0; border-radius: 6px;
+             padding: 8px 18px; font-size: 14px; cursor: pointer; }
+  #openBtn:hover { background: #4a82f2; }
+  #hint { color: #8a93a3; font-size: 12px; }
+  main { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+  .card { background: #1c2129; border-radius: 8px; padding: 14px 16px; }
+  .card h2 { font-size: 13px; margin: 0 0 8px; color: #9fb6e8;
+             word-break: break-all; }
+  .card h2 em { color: #43c088; font-style: normal; margin-left: 10px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 6px;
+            font-size: 12px; }
+  .legend span::before { content: ''; display: inline-block; width: 10px;
+            height: 3px; margin-right: 5px; vertical-align: middle;
+            background: var(--c); }
+  canvas { width: 100%; height: 260px; display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>量化曲线查看器</h1>
+  <button id="openBtn">打开 CSV 文件</button>
+  <input type="file" id="file" accept=".csv" multiple hidden>
+  <span id="hint">temp/motion_quant 与 temp/density_quant 下 solution1~3 的
+    *.csv（可多选叠加对比，显示运行时间）</span>
+</header>
+<main id="charts"></main>
+<script>
+'use strict';
+const COLORS = ['#2f6fed', '#f2b63d', '#43c088', '#e0607e', '#9a7ff9', '#5ec8e0'];
+const openBtn = document.getElementById('openBtn');
+const fileIn = document.getElementById('file');
+openBtn.onclick = () => fileIn.click();
+fileIn.onchange = () => { for (const f of fileIn.files) load(f); fileIn.value = ''; };
+
+function load(f) {
+  const r = new FileReader();
+  r.onload = () => {
+    const parsed = parseCsv(r.result);
+    if (!parsed) { alert('解析失败: ' + f.name); return; }
+    addChart(f.name, parsed);
+  };
+  r.readAsText(f);
+}
+
+function parseCsv(text) {
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return null;
+  const header = lines[0].split(',');
+  const rows = [];
+  const meta = {};
+  for (const l of lines.slice(1)) {
+    if (l[0] === '#') {
+      const p = l.split(',');
+      meta[p[0].slice(1)] = p.slice(1).join(',');
+      continue;
+    }
+    const p = l.split(',').map(Number);
+    if (p.every(v => Number.isFinite(v))) rows.push(p);
+  }
+  return rows.length ? { header, rows, meta } : null;
+}
+
+function addChart(name, data) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const h = document.createElement('h2');
+  h.textContent = name;
+  if (data.meta.runtime_secs !== undefined) {
+    const em = document.createElement('em');
+    em.textContent = 'runtime ' + data.meta.runtime_secs + 's';
+    h.appendChild(em);
+  }
+  card.appendChild(h);
+
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  const series = data.header.slice(1).map((label, i) => ({
+    label, color: COLORS[i % COLORS.length], idx: i + 1,
+  }));
+  for (const s of series) {
+    const sp = document.createElement('span');
+    sp.style.setProperty('--c', s.color);
+    sp.appendChild(document.createTextNode(s.label));
+    legend.appendChild(sp);
+  }
+  card.appendChild(legend);
+
+  const cv = document.createElement('canvas');
+  card.appendChild(cv);
+  document.getElementById('charts').appendChild(card);
+  draw(cv, data.rows, series);
+}
+
+function draw(cv, rows, series) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext('2d');
+  g.scale(dpr, dpr);
+
+  const xs = rows.map(r => r[0]);
+  let vmin = Infinity, vmax = -Infinity;
+  for (const r of rows) for (const s of series) {
+    vmin = Math.min(vmin, r[s.idx]); vmax = Math.max(vmax, r[s.idx]);
+  }
+  if (vmin === vmax) { vmin -= 1; vmax += 1; }
+  const pad = (vmax - vmin) * 0.08; vmin -= pad; vmax += pad;
+  const x0 = xs[0], x1 = xs[xs.length - 1] || 1;
+
+  const L = 56, R = 12, T = 10, B = 26;
+  const px = x => L + (x - x0) / ((x1 - x0) || 1) * (W - L - R);
+  const py = v => T + (1 - (v - vmin) / (vmax - vmin)) * (H - T - B);
+
+  g.strokeStyle = '#2a313d'; g.fillStyle = '#8a93a3';
+  g.font = '11px Segoe UI, sans-serif'; g.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const v = vmin + (vmax - vmin) * i / 4, y = py(v);
+    g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke();
+    g.fillText(fmt(v), 6, y + 4);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const x = x0 + (x1 - x0) * i / 5;
+    g.fillText(x.toFixed(1) + 's', px(x) - 12, H - 8);
+  }
+
+  for (const s of series) {
+    g.strokeStyle = s.color; g.lineWidth = 1.6; g.beginPath();
+    rows.forEach((r, i) => i ? g.lineTo(px(r[0]), py(r[s.idx]))
+                            : g.moveTo(px(r[0]), py(r[s.idx])));
+    g.stroke();
+  }
+}
+
+function fmt(v) {
+  return Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(1) : v.toFixed(4);
+}
+</script>
+</body>
+</html>

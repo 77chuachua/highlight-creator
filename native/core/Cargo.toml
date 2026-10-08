@@ -1,0 +1,20 @@
+[package]
+name = "hc-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+ffmpeg = ["dep:ffmpeg-next"]
+
+[dependencies]
+ffmpeg-next = { workspace = true, optional = true }
+image.workspace = true
+crossbeam.workspace = true
+rayon.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+log.workspace = true

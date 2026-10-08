@@ -1,0 +1,107 @@
+# Flutter
+.dart_tool/
+.packages
+build/
+*.iml
+*.lock
+!.vscode/
+# Miscellaneous
+app/*.class
+app/*.log
+app/*.pyc
+app/*.swp
+app/.DS_Store
+app/.atom/
+app/.build/
+app/.buildlog/
+app/.history
+app/.svn/
+app/.swiftpm/
+app/migrate_working_dir/
+
+# IntelliJ related
+app/*.iml
+app/*.ipr
+app/*.iws
+app/.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+app/**/doc/api/
+app/**/ios/Flutter/.last_build_id
+app/.dart_tool/
+app/.flutter-plugins-dependencies
+app/.pub-cache/
+app/.pub/
+app/build/
+app/coverage/
+
+# Symbolication related
+app/app.*.symbols
+
+# Obfuscation related
+app/app.*.map.json
+
+# Android Studio will place build artifacts here
+app/android/app/debug
+app/android/app/profile
+app/android/app/release
+
+# Flutter Generated
+app/lib/**/*.g.dart
+app/lib/**/*.freezed.dart
+app/lib/**/*.drift.dart
+
+# Rust
+native/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.deepseek/
+.opencode/
+.codewhale/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.app
+*.dmg
+*.msix
+installer/
+ms-store-publish.md
+msixinstaller/
+release_guide.md
+__cmake_systeminformation/ 
+
+# Environment
+.env
+.env.local
+
+# Testing and Temp
+temp/
+app/temp/
+tools/
+test/e2e/
+ffmpeg_command
+issues.md
+patch_flutter.ps1
+patch_flutter2.ps1
+rebuild_windows_debug.bat
+rebuild_windows_debug.ps1
+video_gen.md
+filelist.txt
+*/**/__pycache__/
+workbench.bat
+pack_release.bat

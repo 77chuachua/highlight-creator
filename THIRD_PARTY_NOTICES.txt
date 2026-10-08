@@ -1,0 +1,35 @@
+Highlight Creator — Third-Party Notices
+=======================================
+
+Highlight Creator itself is licensed under the GNU Lesser General Public
+License v3.0 (see LICENSE; COPYING contains the GPLv3 terms it incorporates).
+
+A distributed build bundles the following third-party programs/libraries.
+All of them are LGPL-compatible; no GPL-only component (e.g. libx264, libx265,
+libxvid, frei0r, libvidstab, or the FFmpeg eq/boxblur/hqdn3d filters) is
+included.
+
+1. FFmpeg (ffmpeg.exe, ffprobe.exe, ffplay.exe)
+   License : GNU Lesser General Public License v3.0 (build configured without
+             --enable-gpl) — see licenses/FFmpeg-LGPLv3.txt
+   Source  : https://ffmpeg.org/  /  https://github.com/FFmpeg/FFmpeg
+   Build   : LGPL static build by BtbN (https://github.com/BtbN/FFmpeg-Builds)
+   Used by : rendering pipeline (invoked as an external process)
+
+2. libmpv (libmpv-2.dll)
+   License : GNU Lesser General Public License v2.1+ (mpv built with
+             -Dgpl=false) — see licenses/mpv-LGPL-2.1.txt
+   Source  : https://github.com/mpv-player/mpv
+   Build   : LGPL build by zhongfly
+             (https://github.com/zhongfly/mpv-winbuild)
+   Used by : video preview (media_kit backend)
+
+3. Flutter / Dart packages — BSD-3-Clause, MIT and Apache-2.0; see
+   app/pubspec.lock and each package's LICENSE.
+
+LGPL source/relinking
+--------------------
+FFmpeg and libmpv are shipped as separate programs / shared libraries and are
+not linked into the Highlight Creator application code. Anyone redistributing a
+build must keep the LGPL license texts above and make the corresponding source
+available. The exact fetch/build commands are in fetch_lgpl_deps.ps1.

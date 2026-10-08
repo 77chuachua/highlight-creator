@@ -1,0 +1,19 @@
+{
+  "solution": 1,
+  "mode": "dry_run",
+  "min_elapse": 5.0,
+  "max_elapse": 15.0,
+  "videos": [
+    "C:\\Code\\highlight-creator\\test\\e2e\\videoSource\\test1.mp4"
+  ],
+  "vars": {
+    "activity": {
+      "enabled": true,
+      "threshold": 0.001
+    },
+    "activity_smooth": {
+      "enabled": true,
+      "threshold": 0.001
+    }
+  }
+}

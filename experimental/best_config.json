@@ -1,0 +1,37 @@
+{
+  "solution": 3,
+  "mode": "dry_run",
+  "min_elapse": 5.0,
+  "max_elapse": 11.0,
+  "videos": [
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\1.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\2.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\3.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\4.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\5.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\6.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\7.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\8.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\9.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\10.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\11.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\12.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\13.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\14.MP4",
+    "C:\\Code\\highlight-creator\\temp\\test_data\\081626\\15.MP4"
+  ],
+  "vars": {
+    "mean_speed_px_s": {
+      "enabled": true,
+      "threshold": 12
+    },
+    "still_ratio": {
+      "enabled": true,
+      "threshold": 0.5
+    },
+    "n_tracks": {
+      "enabled": true,
+      "threshold": 3
+    }
+  }
+}

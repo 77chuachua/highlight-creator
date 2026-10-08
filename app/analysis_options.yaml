@@ -1,0 +1,66 @@
+# analysis_options.yaml — Dart / Flutter linting rules
+# Enforced by dart_code_metrics and flutter_lints
+
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # Error rules
+    - always_use_package_imports
+    - avoid_dynamic_calls
+    - avoid_empty_else
+    - avoid_print
+    - avoid_relative_lib_imports
+    - avoid_slow_async_io
+    - avoid_types_as_parameter_names
+    - cancel_subscriptions
+    - close_sinks
+    - comment_references
+    - control_flow_in_finally
+    - empty_statements
+    - hash_and_equals
+    - literal_only_boolean_expressions
+    - no_adjacent_strings_in_list
+    - no_duplicate_case_values
+    - no_logic_in_create_state
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - unnecessary_statements
+    - unrelated_type_equality_checks
+    - use_key_in_widget_constructors
+    - valid_regexps
+    - void_checks
+
+    # Style rules
+    - annotate_overrides
+    - prefer_single_quotes
+    - prefer_final_locals
+    - prefer_const_literals_to_create_immutables
+    - sort_child_properties_last
+    - unawaited_futures
+    - use_build_context_synchronously
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.drift.dart"
+  errors:
+    missing_return: error
+    dead_code: warning
+    invalid_annotation_target: ignore
+
+dart_code_metrics:
+  metrics:
+    cyclomatic-complexity: 20
+    maximum-nesting-level: 5
+    number-of-parameters: 6
+    source-lines-of-code: 200
+  rules:
+    - avoid-unnecessary-type-assertions
+    - avoid-unnecessary-type-casts
+    - prefer-trailing-comma
+    - no-boolean-literal-compare
+    - no-empty-block
+    - prefer-conditional-expressions
+    - no-equal-then-else
