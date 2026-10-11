@@ -55,6 +55,9 @@ app/android/app/release
 app/lib/**/*.g.dart
 app/lib/**/*.freezed.dart
 app/lib/**/*.drift.dart
+# drift 的 database.g.dart 必须入库：CI 只跑测试、不跑 build_runner，
+# 缺了它所有 import AppDatabase 的测试都编译不过（2026-10-11 CI 的 13 个失败）。
+!app/lib/data/database/database.g.dart
 
 # Rust
 native/target/

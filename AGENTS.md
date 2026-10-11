@@ -25,9 +25,28 @@ Save this file as `AGENTS.md` in your project root so the CLI can load it automa
 # ruff check .               # Python
 ```
 
+本仓库实际使用的命令（与 CI 一致）：
+
+```bash
+cd app
+flutter pub get
+# 单元 + Widget 测试（不含 app/test/e2e —— 那套需要本机 ffmpeg 与 test/e2e 素材）
+flutter test test/data test/domain test/presentation test/services test/widget_test.dart test/goal_detection_service_test.dart
+
+# 改了 app/lib/data/database/ 下的 drift 表结构后：重新生成并提交生成物
+dart run build_runner build --delete-conflicting-outputs
+git add app/lib/data/database/database.g.dart
+```
+
 ## Rules
 
 - **Clean and rebuild**: Always ask the user before running `flutter clean` or doing a full rebuild. These are slow operations and may break the working build.
+- **`database.g.dart` 必须入库**：`.gitignore` 忽略 `app/lib/**/*.g.dart`，但 drift 生成的
+  `app/lib/data/database/database.g.dart` 是**唯一例外**（CI 只跑测试、不跑 build_runner）。
+  改了 `database.dart` / `tables.dart` 后必须重新生成并提交它，否则所有 `import AppDatabase`
+  的测试在 CI 上全部编译失败（2026-10-11 那次 13 个失败就是这个原因）。
+  注意 `build_runner build --delete-conflicting-outputs` 会先删掉旧的生成物再重写，中途被打断
+  就会把文件弄丢 —— 本地生成前确认命令能跑完。
 
 ## Architecture Overview
 

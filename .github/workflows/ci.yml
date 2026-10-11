@@ -21,6 +21,10 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v4
+      # drift 的内存库测试（database_test / repositories_test）要用系统 sqlite3：
+      # package:sqlite3 在 Linux 上打开的是不带版本号的 libsqlite3.so，
+      # 只有 libsqlite3-dev 提供它（libsqlite3-0 只有 libsqlite3.so.0）。
+      - run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
       - uses: subosito/flutter-action@v2
         with:
           # 与开发机一致的 SDK：本地 pubspec.lock 解析出的约束是 flutter >=3.38.4，
