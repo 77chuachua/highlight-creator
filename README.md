@@ -10,8 +10,12 @@ a finished MP4 up to 4K.
 
 ## Install
 
-Highlight Creator is a Flutter desktop app backed by a Rust + FFmpeg engine. On
-Windows the ffmpeg binary is bundled under `tools/ffmpeg/`.
+**Microsoft Store (Windows):** search for **Highlight Creator** in the Microsoft
+Store, or open <https://apps.microsoft.com/detail/9P19GR9SXLJW>.
+
+You can also build from source — Highlight Creator is a Flutter desktop app backed
+by a Rust + FFmpeg engine. On Windows the ffmpeg binary is bundled under
+`tools/ffmpeg/`.
 
 Prerequisites:
 

@@ -8,7 +8,10 @@ Highlight Creator 是一款跨平台工具，帮你把比赛或运动素材剪�
 
 ## 安装
 
-Highlight Creator 是基于 Flutter 的桌面应用，底层为 Rust + FFmpeg 引擎。Windows 下 ffmpeg 二进制已打包在 `tools/ffmpeg/` 目录。
+**微软应用商店（Windows）：** 在微软应用商店搜索 **Highlight Creator**，或直接打开
+<https://apps.microsoft.com/detail/9P19GR9SXLJW>。
+
+也可以从源码构建 —— Highlight Creator 是基于 Flutter 的桌面应用，底层为 Rust + FFmpeg 引擎。Windows 下 ffmpeg 二进制已打包在 `tools/ffmpeg/` 目录。
 
 环境要求：
 
