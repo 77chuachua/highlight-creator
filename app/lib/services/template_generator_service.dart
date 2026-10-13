@@ -62,22 +62,6 @@ class TemplateGeneratorService {
     return dir;
   }
 
-  // Blue design set spec files (referenced by both allSets and allSpecs).
-  static const _blueStartup =
-      TemplateSpec('startup_blue.mp4', 'Startup Blue', TemplateCategory.startup);
-  static const _blueEnding =
-      TemplateSpec('ending_blue.mp4', 'Ending Blue', TemplateCategory.ending);
-  static const _blueTransition =
-      TemplateSpec('transition_blue.mp4', 'Transition Blue', TemplateCategory.transition);
-
-  // Yellow design set spec files (bright sun-yellow theme).
-  static const _yellowStartup = TemplateSpec(
-      'startup_yellow.mp4', 'Startup Yellow', TemplateCategory.startup);
-  static const _yellowEnding = TemplateSpec(
-      'ending_yellow.mp4', 'Ending Yellow', TemplateCategory.ending);
-  static const _yellowTransition = TemplateSpec('transition_yellow.mp4',
-      'Transition Yellow', TemplateCategory.transition);
-
   // Green design set spec files (forest-green theme).
   static const _greenStartup = TemplateSpec(
       'startup_green.mp4', 'Startup Green', TemplateCategory.startup);
@@ -94,16 +78,16 @@ class TemplateGeneratorService {
   static const _nocturneTransition = TemplateSpec('transition_nocturne.mp4',
       'Transition Nocturne', TemplateCategory.transition);
 
-  /// The built-in brand sets. 'blue' = sky-blue theme with drifting dots;
-  /// 'yellow' = sun-yellow theme with rotating rays;
-  /// 'green' = forest-green theme with floating leaves;
-  /// 'nocturne' = night stadium built in depth (raking light shafts, mowed
-  /// pitch, anamorphic streak) rather than from a repeating pattern. Each set
-  /// carries its own intro / ending / transition sharing one visual language.
+  /// The built-in brand sets. 'green' = forest-green theme with floating
+  /// leaves; 'nocturne' = night stadium built in depth (raking light shafts,
+  /// mowed pitch, anamorphic streak) rather than from a repeating pattern. Each
+  /// set carries its own intro / ending / transition sharing one visual
+  /// language.
+  ///
+  /// The sky-blue and sun-yellow sets were dropped: new looks are published as
+  /// *online* sets in `template_hub/` (aurora, zenith) instead of shipping in
+  /// the binary, so a set can change without a release.
   static const List<DesignSet> allSets = [
-    DesignSet('blue', 'Blue', _blueStartup, _blueEnding, _blueTransition),
-    DesignSet('yellow', 'Yellow', _yellowStartup, _yellowEnding,
-        _yellowTransition),
     DesignSet('green', 'Green', _greenStartup, _greenEnding,
         _greenTransition),
     DesignSet('nocturne', 'Nocturne', _nocturneStartup, _nocturneEnding,
@@ -111,12 +95,6 @@ class TemplateGeneratorService {
   ];
 
   static const List<TemplateSpec> allSpecs = [
-    _blueStartup,
-    _blueEnding,
-    _blueTransition,
-    _yellowStartup,
-    _yellowEnding,
-    _yellowTransition,
     _greenStartup,
     _greenEnding,
     _greenTransition,

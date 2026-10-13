@@ -1,6 +1,7 @@
 # Template plugins
 
-The four built-in template sets ship with the app and never change. On top of
+The two built-in template sets (green, nocturne) ship with the app and never
+change. On top of
 those, a **plugin template** is published in a catalogue that lives in
 this repository, `template_hub/template_list.json`, served over
 raw.githubusercontent.com. When the template
@@ -178,8 +179,7 @@ and trim it into a script.
 Start from the built-in scenes:
 
 - `app/lib/data/ffi/video_processing_service.dart` — `_nocturneLayers`
-  (volumetric shafts, mowed pitch, anamorphic streak), `_sunLayers`,
-  `_skyLayers`, `_greenLayers`.
+  (volumetric shafts, mowed pitch, anamorphic streak) and `_greenLayers`.
 - `app/test/e2e/design_sets_test.dart` — renders each set and logs its command.
 - `template_hub/scene_kit.dart` — the primitives both published sets are built
   from: geq slots, smoothstep easing, hairlines, the layer fold, and the clip and

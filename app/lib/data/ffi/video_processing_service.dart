@@ -1349,8 +1349,6 @@ class VideoProcessingService {
   static const _rsWhite = ['244', '244', '238'];
   static const _rsBlack = ['30', '30', '34'];
   static const _rsGold = ['245', '196', '45'];
-  static const _rsSkyDeep = ['11', '46', '79'];
-  static const _rsUmber = ['74', '46', '11'];
   static const _rsForestPlate = ['20', '40', '20'];
   static const _rsAmber = ['226', '166', '88'];
   static const _rsNocturnePlate = ['22', '33', '43'];
@@ -1664,15 +1662,14 @@ class VideoProcessingService {
   }
 
   /// Generate a design-set startup (intro) video — [set] picks the theme
-  /// ('blue': sky gradient + drifting dots + deep-blue plate; 'translucent':
-  /// frosted backdrop + layered pastel blobs + smoked-glass plate; 'yellow':
-  /// sun-yellow gradient + rotating rays + umber plate). When
-  /// [title]/[subtitle] are supplied they are burned in (pipeline use); the
-  /// embedded template keeps the plate empty so the editor overlays user
-  /// text. Complexity stays below the football startup scenes.
+  /// ('green': forest gradient + floating leaves + dark plate; 'nocturne':
+  /// night stadium with raking light shafts, mowed pitch and an amber hairline
+  /// layer). When [title]/[subtitle] are supplied they are burned in (pipeline
+  /// use); the embedded template keeps the plate empty so the editor overlays
+  /// user text. Complexity stays below the football startup scenes.
   Future<ProcessResult> generateSetStartup({
     required String outputPath,
-    String set = 'blue',
+    String set = 'green',
     String? title,
     String? subtitle,
     String? bgmPath,
@@ -1777,12 +1774,12 @@ class VideoProcessingService {
   }
 
   /// Generate a design-set ending (outro) video — [set] picks the theme
-  /// ('blue' sky-blue dots, no plate; 'translucent' frosted glass and
-  /// 'yellow' sun rays both carry a glass text band). "感谢观看" and a sub
-  /// line fade in — equal complexity to the existing endings.
+  /// ('green' forest leaves and 'nocturne' night stadium both carry the glass
+  /// text band). "感谢观看" and a sub line fade in — equal complexity to the
+  /// existing endings.
   Future<ProcessResult> generateSetEnding({
     required String outputPath,
-    String set = 'blue',
+    String set = 'green',
     String mainText = '感谢观看',
     String subText = 'Thanks for Watching',
     String? bgmPath,
@@ -1794,7 +1791,8 @@ class VideoProcessingService {
     if (hasRealEncoder) {
       final fontPath = _findSystemFont();
       final d = durationSecs;
-      final scene = _setLayers(set, d, withPlate: set != 'blue', settle: true);
+      // Every surviving set carries a text plate; the set that did not is gone.
+      final scene = _setLayers(set, d, withPlate: true, settle: true);
       final (mainCol, subCol, outCol) = _setTextColors(set);
       final geq = set == 'nocturne'
           ? _nocturneGeq(scene.$1, scene.$2)
@@ -1958,80 +1956,6 @@ class VideoProcessingService {
     }
 
     return _simulateCopy(outputPath, outputPath, 'football ending');
-  }
-
-  /// Shared layer set for the 'blue' (sky-blue) design-set theme: a bright
-  /// azure gradient with fast-expanding white rings (ripple pulse) and an
-  /// optional deep-blue center text plate. One bold, high-contrast motion
-  /// layer keeps the set clean, bright and energetic — two layers max.
-  /// ponytail: ceiling = one hard-coded pattern; a next set needs its own
-  /// _skyLayers-style helper, or this could graduate to a data-driven table.
-  static (List<(String, String, List<String>)>, List<String>) _skyLayers(
-    double d, {
-    bool withPlate = false,
-  }) {
-    const glow = 'max(0\\,1-Y/(H*0.5))';
-    final fadeGlow = 'max(0\\,1-T/(${d.toStringAsFixed(1)}))';
-    // Expanding white rings — the `T/d` normalization keeps a fixed pulse
-    // count per clip regardless of duration (startup 4 s vs ending 3 s).
-    const r = 'sqrt(pow(X-W/2\\,2)+pow(Y-H/2\\,2))';
-    final ring = 'lt(abs(mod($r-700*T/$d\\,150)-75)\\,3)';
-    final ringApp = '(0.55)*(${_win(0.0, 0.5, d - 0.8, d)})';
-
-    // Ponytail: scrolling yellow football along bottom edge, left-to-right
-    const ballR = 'H*0.08';
-    final ballCx = '-$ballR + (W + 2*$ballR) * T/$d';
-    const ballCy = 'H - $ballR';
-    const ballSpin = 3.0;
-    final ballApp = _win(0.0, 0.3, d - 0.3, d);
-
-    final base = [
-      '42+44*$glow*$fadeGlow+2*sin(T*1.5)',
-      '120+70*$glow*$fadeGlow+3*sin(T*1.5)',
-      '218+40*$glow*$fadeGlow+2*sin(T*1.5)',
-    ];
-    final layers = <(String, String, List<String>)>[
-      (ring, ringApp, _rsWhite),
-      if (withPlate)
-        (_rect('W/2', 'H*0.46', 'W*0.30', 'H*0.115', '12'),
-            '(0.55)*(${_win(0.4, 1.2, d - 0.9, d)})', _rsSkyDeep),
-      ..._fbBall(ballCx, ballCy, ballR, ballApp, ballSpin),
-    ];
-    return (layers, base);
-  }
-
-  /// Shared layer set for the 'yellow' design-set theme: a vivid sun-yellow
-  /// gradient with fast-rotating white rays, plus an optional deep umber
-  /// text plate. Two layers max — the leanest set.
-  static (List<(String, String, List<String>)>, List<String>) _sunLayers(
-    double d, {
-    bool withPlate = false,
-  }) {
-    const glow = 'max(0\\,1-Y/(H*0.5))';
-    const ang = 'atan2(Y-H/2\\,X-W/2)';
-    final ray = 'lt(abs(mod($ang*12/PI+8*T/$d\\,2)-1)\\,0.13)';
-    final rayApp = '(0.50)*(${_win(0.0, 0.6, d - 1.0, d)})';
-
-    // Ponytail: scrolling football along bottom edge, left-to-right
-    const ballR = 'H*0.08';
-    final ballCx = '-$ballR + (W + 2*$ballR) * T/$d';
-    const ballCy = 'H - $ballR';
-    const ballSpin = 3.0;
-    final ballApp = _win(0.0, 0.3, d - 0.3, d);
-
-    final base = [
-      '238+16*$glow+2*sin(T*1.2)',
-      '190+26*$glow+3*sin(T*1.2)',
-      '52+16*$glow+2*sin(T*1.2)',
-    ];
-    final layers = <(String, String, List<String>)>[
-      (ray, rayApp, _rsWhite),
-      if (withPlate)
-        (_rect('W/2', 'H*0.46', 'W*0.30', 'H*0.115', '12'),
-            '(0.62)*(${_win(0.4, 1.2, d - 0.9, d)})', _rsUmber),
-      ..._fbBall(ballCx, ballCy, ballR, ballApp, ballSpin),
-    ];
-    return (layers, base);
   }
 
   /// Shared layer set for the 'green' design-set theme: a deep forest-green
@@ -2281,7 +2205,7 @@ class VideoProcessingService {
     return "geq=r='${fold(0)}':g='${fold(1)}':b='${fold(2)}'";
   }
 
-  /// Layer set for a design-set id ('blue' | 'yellow' | 'green' | 'nocturne').
+  /// Layer set for a design-set id ('green' | 'nocturne').
   static (List<(String, String, List<String>)>, List<String>) _setLayers(
     String set,
     double d, {
@@ -2289,19 +2213,15 @@ class VideoProcessingService {
     bool settle = false,
   }) =>
       switch (set) {
-        'yellow' => _sunLayers(d, withPlate: withPlate),
-        'green' => _greenLayers(d, withPlate: withPlate),
         'nocturne' =>
           _nocturneLayers(d, withPlate: withPlate, settle: settle),
-        _ => _skyLayers(d, withPlate: withPlate),
+        _ => _greenLayers(d, withPlate: withPlate),
       };
 
   /// Per-set burned-in text colors: (main, sub, outline).
   static (String, String, String) _setTextColors(String set) => switch (set) {
-        'yellow' => ('#FFFFFF', '#FFF3D6', '#4A2E0B@0.5'),
-        'green' => ('#FFFFFF', '#C8E6C9', '#1B5E20@0.5'),
         'nocturne' => ('#F2F7FB', '#8FA6B8', '#04080C@0.75'),
-        _ => ('#0B2E4F', '#FFFFFF', '#FFFFFF@0.6'),
+        _ => ('#FFFFFF', '#C8E6C9', '#1B5E20@0.5'),
       };
 
   static (List<(String, String, List<String>)>, List<String>) _reLayers(

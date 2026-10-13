@@ -5,10 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:highlight_creator/data/ffi/video_processing_service.dart';
 import 'package:highlight_creator/services/template_generator_service.dart';
 
-/// Verify the built-in design sets ('blue' sky theme, 'yellow' sun theme,
-/// 'green' forest theme, 'nocturne' night-stadium theme): each set ships
-/// startup + ending + transition, the built-in list carries exactly one
-/// transition per set, and every set part renders playable 720p video locally.
+/// Verify the built-in design sets ('green' forest theme, 'nocturne'
+/// night-stadium theme): each set ships startup + ending + transition, the
+/// built-in list carries exactly one transition per set, and every set part
+/// renders playable 720p video locally. The sky-blue and sun-yellow sets were
+/// dropped; other looks are published as online sets in `template_hub/`.
 void main() {
   late String projectRoot;
   late String tempDir;
@@ -36,8 +37,6 @@ void main() {
       expect(transitions.length, TemplateGeneratorService.allSets.length,
           reason: 'one transition per design set; legacy ones removed');
       expect(transitions.map((s) => s.fileName).toSet(), {
-        'transition_blue.mp4',
-        'transition_yellow.mp4',
         'transition_green.mp4',
         'transition_nocturne.mp4',
       });
@@ -45,7 +44,7 @@ void main() {
 
     test('every design set has startup + ending + transition in allSpecs', () {
       expect(TemplateGeneratorService.allSets.map((s) => s.id),
-          containsAll(['blue', 'yellow', 'green', 'nocturne']));
+          containsAll(['green', 'nocturne']));
       for (final set in TemplateGeneratorService.allSets) {
         expect(set.startup.category, TemplateCategory.startup,
             reason: '${set.id} startup category');
@@ -128,16 +127,14 @@ void main() {
   });
 
   for (final set in const [
-    ('blue', 'skyblue'),
-    ('yellow', 'gold'),
     ('green', 'forest'),
     ('nocturne', 'nocturne'),
   ]) {
     final setId = set.$1;
     final style = set.$2;
-    // Yellow carries 12 rotating rays and nocturne 3 ray-cast light shafts;
-    // both need longer than the two-layer sets.
-    final timeoutSecs = (setId == 'yellow' || setId == 'nocturne') ? 600 : 120;
+    // Nocturne ray-casts three light shafts through a ~14 kB geq scene, so it
+    // needs longer than the two-layer forest set.
+    final timeoutSecs = setId == 'nocturne' ? 600 : 120;
 
     group('$setId set generation', () {
       test('$setId startup renders 720p video', () async {
