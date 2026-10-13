@@ -97,8 +97,16 @@ void main() {
           .readAsStringSync()) as Map<String, dynamic>,
     );
     expect(manifest.schemaVersion, 1);
-    expect(manifest.templates.map((t) => t.id).toSet(),
-        {'aurora-startup', 'aurora-ending', 'aurora-transition'});
+    // Both published sets must be complete: a set missing its ending ships a
+    // broken tab, and an id left behind after a rename ships a dead card.
+    expect(manifest.templates.map((t) => t.id).toSet(), {
+      'aurora-startup',
+      'aurora-ending',
+      'aurora-transition',
+      'zenith-startup',
+      'zenith-ending',
+      'zenith-transition',
+    });
     expect(manifest.templates.map((t) => t.type).toSet(),
         {TemplateType.startup, TemplateType.ending, TemplateType.transition});
 
@@ -134,7 +142,7 @@ void main() {
         expect(res.$2, spec.render.height, reason: spec.id);
       }
     }
-  }, timeout: const Timeout(Duration(minutes: 5)));
+  }, timeout: const Timeout(Duration(minutes: 25)));
 }
 
 /// Walk up from the package directory (tests run with `app/` as cwd) to the

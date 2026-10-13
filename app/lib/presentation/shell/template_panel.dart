@@ -187,6 +187,10 @@ class _TemplatePanelState extends ConsumerState<TemplatePanel> {
           inputPath: path,
           outputPath: previewPath,
           text: title,
+          // Startup/ending only (see isTitleable), so the plate center is the
+          // right target; this also honours a saved top/bottom choice that the
+          // preview used to ignore.
+          yExpr: VideoProcessingService.textYExpr(template.textPosition),
         );
         if (!mounted) return;
         if (res.exitCode == 0) {

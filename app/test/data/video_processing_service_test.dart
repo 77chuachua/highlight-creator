@@ -23,4 +23,23 @@ void main() {
       expect(VideoProcessingService.parseAvgFrameRate('30/0'), 0);
     });
   });
+
+  group('textYExpr', () {
+    // Every design set draws its text plate centered at H*0.46 (see
+    // _nocturneLayers), so frame-centered text lands visibly low in the band.
+    test('middle targets the plate center, not the frame center', () {
+      expect(VideoProcessingService.textYExpr('middle'), 'h*0.46-text_h/2');
+      expect(VideoProcessingService.textYExpr(null), 'h*0.46-text_h/2');
+    });
+
+    test('a transition keeps its reserved zone at the frame center', () {
+      expect(VideoProcessingService.textYExpr('middle', transition: true),
+          '(h-text_h)/2');
+    });
+
+    test('top and bottom are unchanged', () {
+      expect(VideoProcessingService.textYExpr('top'), 'h*0.15');
+      expect(VideoProcessingService.textYExpr('bottom'), 'h*0.85-text_h');
+    });
+  });
 }

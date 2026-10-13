@@ -337,11 +337,17 @@ class _TemplateEditorDialogState
     return '#${v.toRadixString(16).padLeft(6, '0')}';
   }
 
-  String get _yExpr => switch (_pos) {
-        _TextPos.top => 'h*0.15',
-        _TextPos.middle => '(h-text_h)/2',
-        _TextPos.bottom => 'h*0.85-text_h',
-      };
+  /// Overlay `y` for the active category: a transition reserves its text zone at
+  /// the frame center, a startup/ending plate sits higher (see
+  /// [VideoProcessingService.textYExpr]).
+  String get _yExpr => VideoProcessingService.textYExpr(
+        switch (_pos) {
+          _TextPos.top => 'top',
+          _TextPos.middle => 'middle',
+          _TextPos.bottom => 'bottom',
+        },
+        transition: _category == TemplateCategory.transition,
+      );
 
   String _catLabel(TemplateCategory c) => switch (c) {
         TemplateCategory.startup => _s('开场', 'Startup'),

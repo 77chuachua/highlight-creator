@@ -28,8 +28,8 @@
       "type": "ending",
       "script": {
         "url": "https://raw.githubusercontent.com/77chuachua/highlight-creator/main/template_hub/aurora-ending.ffscript",
-        "sha256": "866e0cd5f170cc8a70b5374f1894bfaaf9845d26cd6e1fb42ba5ff113e523b0a",
-        "sizeBytes": 13559
+        "sha256": "b1cad9b7287940ed20390d9760f0d0adad5e69d6aaae00d646a6a8386b5f3e65",
+        "sizeBytes": 12572
       },
       "render": {
         "durationSecs": 3.0,
@@ -48,6 +48,60 @@
         "url": "https://raw.githubusercontent.com/77chuachua/highlight-creator/main/template_hub/aurora-transition.ffscript",
         "sha256": "22c3a235cf6e5804aabb5bc184dbd9cc141d465c91963f1de1171e9542fa8553",
         "sizeBytes": 2521
+      },
+      "render": {
+        "durationSecs": 1.5,
+        "width": 1280,
+        "height": 720,
+        "withBgm": false
+      }
+    },
+    {
+      "id": "zenith-startup",
+      "name": "Zenith Startup",
+      "description": "灯架在夜场上方投下四道光锥 · An overhead rig drops four light cones onto a wet pitch",
+      "author": "77chuachua",
+      "type": "startup",
+      "script": {
+        "url": "https://raw.githubusercontent.com/77chuachua/highlight-creator/main/template_hub/zenith-startup.ffscript",
+        "sha256": "d385fd6580cd6368dd77dbc6023eca6393ccfa2e2111b9bf87513eeef4b91611",
+        "sizeBytes": 22862
+      },
+      "render": {
+        "durationSecs": 4.0,
+        "width": 1280,
+        "height": 720,
+        "withBgm": true
+      }
+    },
+    {
+      "id": "zenith-ending",
+      "name": "Zenith Ending",
+      "description": "灯架收暗，湿地只剩余晖 · The rig dims, the wet pitch keeps the afterglow",
+      "author": "77chuachua",
+      "type": "ending",
+      "script": {
+        "url": "https://raw.githubusercontent.com/77chuachua/highlight-creator/main/template_hub/zenith-ending.ffscript",
+        "sha256": "6aaab1e6ca653809b8f386da0d2082fc71cfd701230688b79f131f9be359ab98",
+        "sizeBytes": 24257
+      },
+      "render": {
+        "durationSecs": 3.0,
+        "width": 1280,
+        "height": 720,
+        "withBgm": true
+      }
+    },
+    {
+      "id": "zenith-transition",
+      "name": "Zenith Transition",
+      "description": "光锥横扫，中央留出字幕区 · Light cones sweep past a reserved text zone",
+      "author": "77chuachua",
+      "type": "transition",
+      "script": {
+        "url": "https://raw.githubusercontent.com/77chuachua/highlight-creator/main/template_hub/zenith-transition.ffscript",
+        "sha256": "58b030b99bd555421abbe38249745a88d0bddafdc4ca60bf4380c058e03d3fac",
+        "sizeBytes": 3015
       },
       "render": {
         "durationSecs": 1.5,

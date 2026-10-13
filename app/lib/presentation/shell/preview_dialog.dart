@@ -118,7 +118,10 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
       if (vps != null) {
         final out = '${_tempDir.path}${Platform.pathSeparator}'
             'preview_${index}_${text.hashCode}.mp4';
-        final yExpr = _yExprFromPosition(tmpl.textPosition);
+        final yExpr = VideoProcessingService.textYExpr(
+          tmpl.textPosition,
+          transition: tmpl.type == TemplateType.transition,
+        );
         final fontHex = _fontColorHex(tmpl.fontColor);
         final escapedFont = _escapeFontPath(tmpl.fontPath);
         final res = await vps.overlayText(
@@ -139,17 +142,6 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
     await player.open(Media(playPath));
     if (mounted) {
       setState(() => _loading[index] = false);
-    }
-  }
-
-  String _yExprFromPosition(String? pos) {
-    switch (pos) {
-      case 'top':
-        return 'h*0.15';
-      case 'bottom':
-        return 'h*0.85-text_h';
-      default:
-        return '(h-text_h)/2';
     }
   }
 

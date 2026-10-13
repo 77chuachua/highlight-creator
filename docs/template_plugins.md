@@ -60,6 +60,12 @@ Unknown fields are ignored, so you can add metadata without breaking older
 builds. Anything malformed is refused by name — the error names the template and
 the field, so a bad catalogue is never silently half-loaded.
 
+An `ending` reserves a text area and nothing else: online endings burn no text,
+so the app can overlay the user's own line into the area exactly as it does for a
+`startup`, and unlike the built-in endings there is no second rule for a subtitle
+line. `startup` and `transition` follow the same rule — the script draws the
+area, the app draws the words.
+
 ### Publishing an update
 
 Bump `revision` (or change the script so its hash changes). The cache filename
@@ -171,8 +177,15 @@ Start from the built-in scenes:
   (volumetric shafts, mowed pitch, anamorphic streak), `_sunLayers`,
   `_skyLayers`, `_greenLayers`.
 - `app/test/e2e/design_sets_test.dart` — renders each set and logs its command.
-- `template_hub/gen_aurora.dart` — the published 'aurora' set: the nocturne scene
-  with aurora curtains in place of the floodlight shafts, emitted as the three
-  `.ffscript` files the catalogue points at. Copy it to start a new set, then
-  refresh `sizeBytes`/`sha256` in `template_hub/template_list.json`;
-  `app/test/e2e/template_hub_test.dart` fails when the two drift apart.
+- `template_hub/scene_kit.dart` — the primitives both published sets are built
+  from: geq slots, smoothstep easing, hairlines, the layer fold, and the clip and
+  reserved-zone wrappers. Sharing it is what keeps their *materials* identical
+  (depth, haze, grain, easing) while the scenes stay independent.
+- `template_hub/gen_aurora.dart` — the 'aurora' set: nocturne's raking shafts
+  become three rippling curtains over the same mowed pitch, mint instead of amber.
+- `template_hub/gen_zenith.dart` — the 'zenith' set: an overhead rig drops four
+  cones onto a *wet* pitch (each pool smears into a reflection, no mowed
+  stripes), and the graphic layer is a scoreboard bar instead of corner brackets.
+- Copy either generator to start a set, then refresh `sizeBytes`/`sha256` in
+  `template_hub/template_list.json`; `app/test/e2e/template_hub_test.dart` fails
+  when the two drift apart.

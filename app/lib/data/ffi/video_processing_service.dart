@@ -634,6 +634,28 @@ class VideoProcessingService {
     return _simulateCopy(sourcePath, outputPath, 'extract frame');
   }
 
+  /// `drawtext` `y` that centers overlay text on a design set's text plate.
+  ///
+  /// Every design set draws its reserved band centered at `H*0.46` — see the
+  /// plate rect in `_nocturneLayers` and the startup's own burned title,
+  /// `h*0.46-text_h/2`. Text centered on the frame at `h/2` therefore sits
+  /// visibly low inside the lit band.
+  static const String plateCenterYExpr = 'h*0.46-text_h/2';
+
+  /// `drawtext` `y` for a stored text position (`top` | `middle` | `bottom`).
+  ///
+  /// `middle` is the center of the template's reserved text area, which is the
+  /// frame center only for a [transition]: transitions reserve a zone at `H/2`,
+  /// while startup and ending plates sit at [plateCenterYExpr]. Every caller
+  /// that burns a template's text goes through here, so the editor preview, the
+  /// preview dialog and the final render cannot drift apart.
+  static String textYExpr(String? position, {bool transition = false}) =>
+      switch (position) {
+        'top' => 'h*0.15',
+        'bottom' => 'h*0.85-text_h',
+        _ => transition ? '(h-text_h)/2' : plateCenterYExpr,
+      };
+
   /// Overlay a single line of text onto an existing video.
   ///
   /// Used by the template editor to preview a chosen font inside a real
@@ -990,11 +1012,7 @@ class VideoProcessingService {
         fontPath: startupTemplate?.fontPath,
         fontSize: scaledStartupFontSize,
         fontColor: startupTemplate?.fontColor ?? '#F5C42D',
-        yExpr: switch (startupTemplate?.textPosition) {
-          'top' => 'h*0.15',
-          'bottom' => 'h*0.85-text_h',
-          _ => '(h-text_h)/2',
-        },
+        yExpr: textYExpr(startupTemplate?.textPosition),
         width: width,
         height: height,
       );
