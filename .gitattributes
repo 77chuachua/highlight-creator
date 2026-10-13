@@ -1,0 +1,11 @@
+# The online template catalogue makes byte-exact promises: every entry in
+# template_hub/template_list.json carries the sizeBytes and sha256 of the
+# .ffscript it points at, and those are checked against the download.
+#
+# The bytes that matter are the ones raw.githubusercontent.com serves, which is
+# the committed blob. Pin these files to LF so a Windows checkout with
+# core.autocrlf=true does not turn the working copy into a different byte
+# sequence than the one the catalogue describes — and so
+# app/test/e2e/template_hub_test.dart compares like with like.
+template_hub/*.ffscript text eol=lf
+template_hub/template_list.json text eol=lf

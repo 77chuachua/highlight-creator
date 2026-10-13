@@ -1,8 +1,9 @@
 # Template plugins
 
 The four built-in template sets ship with the app and never change. On top of
-those, a **plugin template** is published in a catalogue (a `manifest.json`
-hosted on GitHub, served over raw.githubusercontent.com). When the template
+those, a **plugin template** is published in a catalogue that lives in
+this repository, `template_hub/template_list.json`, served over
+raw.githubusercontent.com. When the template
 config dialog opens it fetches the catalogue; picking a catalogue card
 downloads that template's script and renders it with the same ffmpeg the
 built-in sets already use.
@@ -138,7 +139,7 @@ caching a broken video.
 Under `%USERPROFILE%\HighlightCreator\templates\`:
 
 ```
-manifest.json                    last good catalogue (reused for 6 h)
+manifest.json                    cached copy of template_list.json (6 h)
 plugins/<id>_<revision>.ffscript verified filtergraph
 plugins/<id>_<revision>.mp4      rendered result
 ```
@@ -148,8 +149,9 @@ network. `TemplatePluginService.invalidateAll()` clears everything.
 
 ## Pointing at your own catalogue
 
-`TemplatePluginService.manifestUrl` is a static field. Change its default, or set
-it at startup to point at a fork:
+`TemplatePluginService.manifestUrl` is a static field. The default is this
+repository's own catalogue, `template_hub/template_list.json` on `main`; set it
+at startup to point at a fork instead:
 
 ```dart
 TemplatePluginService.manifestUrl =
@@ -169,3 +171,8 @@ Start from the built-in scenes:
   (volumetric shafts, mowed pitch, anamorphic streak), `_sunLayers`,
   `_skyLayers`, `_greenLayers`.
 - `app/test/e2e/design_sets_test.dart` — renders each set and logs its command.
+- `template_hub/gen_aurora.dart` — the published 'aurora' set: the nocturne scene
+  with aurora curtains in place of the floodlight shafts, emitted as the three
+  `.ffscript` files the catalogue points at. Copy it to start a new set, then
+  refresh `sizeBytes`/`sha256` in `template_hub/template_list.json`;
+  `app/test/e2e/template_hub_test.dart` fails when the two drift apart.

@@ -86,8 +86,14 @@ class TemplatePluginService {
 
   /// Overridable so a fork — or a test — can point at its own catalogue
   /// without touching code.
+  ///
+  /// The catalogue ships with this repository, served raw: every template's
+  /// filtergraph sits next to it in `template_hub/`, and the `sizeBytes` /
+  /// `sha256` it publishes are checked against the download. Adding a
+  /// template is therefore a commit, not a release.
   static String manifestUrl =
-      'https://raw.githubusercontent.com/highlight-creator/templates/main/manifest.json';
+      'https://raw.githubusercontent.com/77chuachua/highlight-creator/main/'
+      'template_hub/template_list.json';
 
   /// Treat a cached catalogue as current for this long, so opening the editor
   /// does not hit the network on every rebuild.

@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-13",
+  "templates": [
+    {
+      "id": "aurora-startup",
+      "name": "Aurora Startup",
+      "description": "夜球场上的极光帷幕 · Aurora curtains rise over a night stadium",
+      "author": "77chuachua",
+      "type": "startup",
+      "script": {
+        "url": "https://raw.githubusercontent.com/77chuachua/highlight-creator/main/template_hub/aurora-startup.ffscript",
+        "sha256": "5b54af6752e82dfade2a37caeb38de099278ffa3e6ed3df820bdb094009e1899",
+        "sizeBytes": 13466
+      },
+      "render": {
+        "durationSecs": 4.0,
+        "width": 1280,
+        "height": 720,
+        "withBgm": true
+      }
+    },
+    {
+      "id": "aurora-ending",
+      "name": "Aurora Ending",
+      "description": "极光退去，只留地平线余光 · Aurora retreats, the horizon glow stays",
+      "author": "77chuachua",
+      "type": "ending",
+      "script": {
+        "url": "https://raw.githubusercontent.com/77chuachua/highlight-creator/main/template_hub/aurora-ending.ffscript",
+        "sha256": "866e0cd5f170cc8a70b5374f1894bfaaf9845d26cd6e1fb42ba5ff113e523b0a",
+        "sizeBytes": 13559
+      },
+      "render": {
+        "durationSecs": 3.0,
+        "width": 1280,
+        "height": 720,
+        "withBgm": true
+      }
+    },
+    {
+      "id": "aurora-transition",
+      "name": "Aurora Transition",
+      "description": "极光扫过，中央留出字幕区 · Aurora bands sweep past a reserved text zone",
+      "author": "77chuachua",
+      "type": "transition",
+      "script": {
+        "url": "https://raw.githubusercontent.com/77chuachua/highlight-creator/main/template_hub/aurora-transition.ffscript",
+        "sha256": "22c3a235cf6e5804aabb5bc184dbd9cc141d465c91963f1de1171e9542fa8553",
+        "sizeBytes": 2521
+      },
+      "render": {
+        "durationSecs": 1.5,
+        "width": 1280,
+        "height": 720,
+        "withBgm": false
+      }
+    }
+  ]
+}
