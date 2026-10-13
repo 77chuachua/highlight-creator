@@ -145,13 +145,17 @@ caching a broken video.
 Under `%USERPROFILE%\HighlightCreator\templates\`:
 
 ```
-manifest.json                    cached copy of template_list.json (6 h)
+manifest.json                    cached copy of template_list.json (30 s)
 plugins/<id>_<revision>.ffscript verified filtergraph
 plugins/<id>_<revision>.mp4      rendered result
 ```
 
 Because the rendered file is cached, a second click is instant and costs no
-network. `TemplatePluginService.invalidateAll()` clears everything.
+network. The catalogue itself is trusted only for
+`TemplatePluginService.cacheTtl` (30 s), so a publish shows up the next time the
+dialog is opened instead of hours later; when the network is down the cached copy
+is served whatever its age, because a stale list beats an empty dialog.
+`TemplatePluginService.invalidateAll()` clears everything.
 
 ## Pointing at your own catalogue
 

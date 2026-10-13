@@ -95,9 +95,13 @@ class TemplatePluginService {
       'https://raw.githubusercontent.com/77chuachua/highlight-creator/main/'
       'template_hub/template_list.json';
 
-  /// Treat a cached catalogue as current for this long, so opening the editor
-  /// does not hit the network on every rebuild.
-  static const Duration cacheTtl = Duration(hours: 6);
+  /// How long a cached catalogue counts as current.
+  ///
+  /// Deliberately short: the catalogue is a few kB, and a long window means a
+  /// freshly published template stays invisible for hours with no way to force a
+  /// refresh. 30 s keeps a rebuild from re-requesting the file while making a
+  /// publish show up on the next time the dialog is opened.
+  static const Duration cacheTtl = Duration(seconds: 30);
 
   static const Duration _timeout = Duration(seconds: 20);
 
