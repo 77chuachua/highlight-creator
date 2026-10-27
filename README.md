@@ -1,8 +1,13 @@
 # Highlight Creator
 
-Highlight Creator is a cross-platform tool for turning game or sports footage into
-edited highlight reels — mark the moments, add transitions and effects, and render
-a finished MP4 up to 4K.
+Highlight Creator turns game or sports footage into edited highlight reels — mark
+the moments, add transitions and effects, and render a finished MP4 up to 4K. It
+also builds weekly / monthly / yearly **Top-5 and Top-10 reels**, and can narrate
+them in **your own cloned voice** with an optional local engine: no cloud, no API
+key, audio never leaves the machine.
+
+**Windows only for now.** The Microsoft Store build is the supported release;
+macOS, Android and iOS are planned, not available.
 
 ![Highlight Creator main screen](app/windows/res/screenshot_en.png)
 
@@ -63,8 +68,17 @@ All processing runs locally — videos never leave your machine.
   1×→1.7× zoom-pan effect for remote shots.
 - **Up to 4K export.** 720p/1080p/4K presets from any source resolution.
 - **Offline-first and private.** No account, no cloud, no network required.
-- **One codebase, four platforms.** Windows, macOS, Android, and iOS via Flutter,
-  with a native Rust core for heavy lifting.
+- **Highlight reels, automatically.** Weekly / monthly / yearly Top-5 and Top-10
+  reels, built from the project's marked slots (or from the reels below them), with
+  intro cards, per-rank transitions and an ending.
+- **Your own voice, on your own machine.** An optional local cloning engine narrates
+  the reel in your voice, with a voice-pack format you can share, an intonation
+  reference, a speed control and a natural-language tone instruction. It needs a
+  Windows PC with a 6 GB GPU and is installed separately — see
+  [voice_clone.md](docs/voice_clone.md). Without it the reel still renders, using a
+  Windows system voice.
+- **Flutter UI, native core.** A Flutter desktop shell over a Rust + FFmpeg engine
+  for the heavy lifting. Today that ships on Windows only.
 
 ## Hardware requirements — 4K input → 4K output
 
@@ -133,6 +147,9 @@ flutter test test/e2e/readme_screenshot_test.dart
 - [Implementation plan](IMPLEMENTATION_PLAN.md)
 - [Issues & roadmap](issues.md)
 - [Use cases](UseCase.md)
+- [`.hlcproj` format](docs/hlcproj_format.md) — project file spec, for a phone or
+  tablet companion that marks clips and hands the work to the desktop
+- [Local voice cloning plugin](docs/voice_clone.md) — install, voice packs, protocol
 
 ## License
 

@@ -1,6 +1,10 @@
 # Highlight Creator（集锦创作器）
 
-Highlight Creator 是一款跨平台工具，帮你把比赛或运动素材剪成成品集锦 —— 标记精彩瞬间、添加转场与特效，最终渲染为最高 4K 的 MP4 视频。
+Highlight Creator 帮你把比赛或运动素材剪成成品集锦 —— 标记精彩瞬间、添加转场与特效，
+最终渲染为最高 4K 的 MP4 视频。它还能自动生成**每周 / 每月 / 每年的五佳球和十佳球**合集，
+并用**你自己的克隆音色**解说（可选本地引擎：不联网、不需要 key、音频不出本机）。
+
+**目前只支持 Windows。** 微软应用商店版本是正式发布版本；macOS、Android、iOS 在计划中，尚未提供。
 
 ![Highlight Creator 主界面](app/windows/res/screenshot_zh.png)
 
@@ -46,7 +50,13 @@ flutter build windows
 - **有转播质感。** 文字转场、片头/片尾模板，以及 remote 镜头平滑的 1×→1.7× 缩放平移特效。
 - **最高 4K 导出。** 任意源分辨率均可输出 720p / 1080p / 4K。
 - **离线优先，保护隐私。** 无需账号、无需联网。
-- **一套代码，四大平台。** 通过 Flutter 覆盖 Windows、macOS、Android、iOS，重活交给原生 Rust 核心。
+- **合集自动生成。** 每周 / 每月 / 每年的五佳球与十佳球，取自本项目标记的片段（也可以取自下一级合集），
+  带片头卡、分名次转场和片尾。
+- **你自己的声音，跑在你自己机器上。** 可选本地克隆引擎用你的音色解说成片，语音包可分享，
+  支持语调参考、语速和自然语言语气指令。需要带 6 GB 显卡的 Windows 电脑并单独安装 —— 见
+  [语音克隆说明](docs/voice_clone.md)。没装引擎也能出片，改用 Windows 系统语音。
+- **Flutter 界面 + 原生核心。** Flutter 桌面外壳套在 Rust + FFmpeg 引擎上，重活交给原生层；
+  目前只在 Windows 出货。
 
 ## 硬件配置要求 —— 4K 输入 → 4K 输出
 
@@ -101,6 +111,8 @@ flutter test test/e2e/readme_screenshot_test.dart
 - [实施计划](IMPLEMENTATION_PLAN.md)
 - [问题与路线图](issues.md)
 - [用例](UseCase.md)
+- [`.hlcproj` 格式](docs/hlcproj_format.md) —— 项目文件规范，供手机/平板伴侣应用标记片段后交给电脑
+- [本地语音克隆插件](docs/voice_clone.md) —— 安装、语音包格式、进程协议
 
 ## 许可证
 

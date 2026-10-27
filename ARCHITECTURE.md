@@ -26,7 +26,8 @@
 
 ## 1. Overview
 
-**Highlight Creator** is a cross-platform application that enables users to create highlight reels by slicing, applying effects, and combining clips from multiple source videos. It targets **Windows**, **macOS**, **Android**, and **iOS** from a single shared codebase.
+**Highlight Creator** is a cross-platform application that enables users to create highlight reels by slicing, applying effects, and combining clips from multiple source videos. It ships on **Windows** today; the same Flutter codebase also builds for macOS, Android
+and iOS, which are not released yet.
 
 ### Core Capabilities
 
@@ -39,7 +40,7 @@
 
 ### Design Goals
 
-- **Code sharing ≥ 85%** across all four platforms.
+- **Code sharing ≥ 85%** across the Flutter targets (Windows is the released one).
 - **Smooth 60 fps** UI with hardware-accelerated video preview.
 - **Offline-first** — all core features work without a network connection.
 - **Modular** — each of the four modules can be developed, tested, and shipped independently.
