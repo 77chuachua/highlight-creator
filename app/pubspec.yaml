@@ -1,7 +1,7 @@
 name: highlight_creator
 description: Cross-platform video highlight creator with effects.
 publish_to: 'none'
-version: 0.3.0+0
+version: 0.4.0+0
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -17,7 +17,6 @@ dependencies:
   # State management
   riverpod: ^2.5.1
   flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
 
   # Dependency injection
   get_it: ^7.7.0
@@ -41,10 +40,7 @@ dependencies:
   flutter_rust_bridge: ^2.3.0
 
   # Utilities
-  freezed_annotation: ^2.4.4
-  json_annotation: ^4.9.0
   uuid: ^3.0.7
-  intl: ^0.19.0
 
   # Window management (OS close interception)
   window_manager: ^0.4.2
@@ -53,16 +49,14 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  # Linting
-  flutter_lints: ^4.0.0
-  dart_code_metrics: ^5.7.6
+  # Linting. dart_code_metrics is gone: it is discontinued and it pinned the
+  # whole analyzer chain to 5.x, which held every other dependency back.
+  flutter_lints: ^6.0.0
 
-  # Code generation
+  # Code generation. Only drift generates code here; the freezed / json /
+  # riverpod generators were listed but never used by a single file.
   build_runner: ^2.4.9
   drift_dev: ^2.16.1
-  freezed: ^2.5.2
-  json_serializable: ^6.8.0
-  riverpod_generator: ^2.4.0
 
   # Testing
   mocktail: ^1.0.3

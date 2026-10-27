@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 五佳球 步骤1 选择</title>
+<link rel="stylesheet" href="assets/proto.css">
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a><span class="sep">/</span>
+  <a href="top5-picker.html" class="on">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 1140×720</span>
+</nav>
+
+<div class="stage stage--top">
+  <div>
+    <div class="note">
+      <b>步骤 1 · 选择</b> —— <code>top5_dialog.dart → _buildPicker()</code>。
+      上排是层级（周/月/年）与类型（进球/扑救）、周期标签（<b>按项目日期算，不按系统时间</b>）、已选计数；下面左右 3:2 分栏，
+      左为候选池（点击加入名次），右为名次槽位。达到 5 个后其余行变成禁止图标。
+    </div>
+
+    <div class="dlg">
+      <!-- ------------------------------------------------------------ header -->
+      <div class="dlg__head">
+        <div class="badge">🏆</div>
+        <div class="title">5佳球 / 10佳球</div>
+        <div class="gap-lg"></div>
+        <div class="steps">
+          <div class="step on"><span class="step__num">1</span>选择</div>
+          <span class="chev">›</span>
+          <div class="step"><span class="step__num">2</span>预览与解说</div>
+        </div>
+        <div class="grow"></div>
+        <button class="iconbtn" title="关闭">✕</button>
+      </div>
+      <div class="divider"></div>
+
+      <!-- -------------------------------------------------------------- body -->
+      <div class="dlg__body">
+        <div style="display:flex;align-items:center;gap:16px;flex:none">
+          <div class="seg">
+            <span class="on">周</span><span>月</span><span>年</span>
+          </div>
+          <div class="seg">
+            <span class="on">进球</span><span>扑救</span>
+          </div>
+          <span class="faint" style="font-size:12px" title="周期按项目日期计算">2026-W43 · 本周</span>
+          <div style="flex:1"></div>
+          <span class="chip" style="color:#8fe3c4;border-color:rgba(78,201,160,.4);background:rgba(78,201,160,.14);padding:3px 10px;font-size:12px">已选 5 / 5</span>
+        </div>
+
+        <div class="cols" style="margin-top:12px">
+          <!-- pool -->
+          <div class="panel panel--3">
+            <div class="panel__head">可选片段<span class="trail">18 个</span></div>
+            <div class="panel__rows">
+              <div class="row">
+                <div class="row__stars">★★★★★</div>
+                <div class="row__main">
+                  <div class="row__title">01 老庄没收皮球</div>
+                  <div class="row__sub">123.4s 起 · 8.0s</div>
+                </div>
+                <div class="rank rank--1">1</div>
+              </div>
+              <div class="row">
+                <div class="row__stars">★★★★☆</div>
+                <div class="row__main">
+                  <div class="row__title">02 小王远射破门</div>
+                  <div class="row__sub">341.2s 起 · 7.5s</div>
+                </div>
+                <div class="rank">2</div>
+              </div>
+              <div class="row">
+                <div class="row__stars">★★★★☆</div>
+                <div class="row__main">
+                  <div class="row__title">03 老庄头球攻门</div>
+                  <div class="row__sub">512.0s 起 · 6.8s</div>
+                </div>
+                <div class="rank">3</div>
+              </div>
+              <div class="row">
+                <div class="row__stars">★★★☆☆</div>
+                <div class="row__main">
+                  <div class="row__title">04 门将飞身扑救</div>
+                  <div class="row__sub">688.3s 起 · 8.2s</div>
+                </div>
+                <div class="rank">4</div>
+              </div>
+              <div class="row">
+                <div class="row__stars">★★★☆☆</div>
+                <div class="row__main">
+                  <div class="row__title">05 意外乌龙</div>
+                  <div class="row__sub">801.7s 起 · 7.0s</div>
+                </div>
+                <div class="rank">5</div>
+              </div>
+              <div class="row">
+                <div class="row__stars">★★☆☆☆</div>
+                <div class="row__main">
+                  <div class="row__title">06 横梁拒绝</div>
+                  <div class="row__sub">905.1s 起 · 6.4s</div>
+                </div>
+                <span class="blocked">⊘</span>
+              </div>
+              <div class="row">
+                <div class="row__stars" style="color:var(--dim)">—</div>
+                <div class="row__main">
+                  <div class="row__title">07 中场拼抢</div>
+                  <div class="row__sub">1012.6s 起 · 8.0s</div>
+                </div>
+                <span class="blocked">⊘</span>
+              </div>
+              <div class="row">
+                <div class="row__stars">★★☆☆☆</div>
+                <div class="row__main">
+                  <div class="row__title">08 角球机会</div>
+                  <div class="row__sub">1120.9s 起 · 7.2s</div>
+                </div>
+                <span class="blocked">⊘</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- lineup -->
+          <div class="panel panel--2">
+            <div class="panel__head">名次<span class="trail">NO.1 = 最佳</span></div>
+            <div class="panel__rows">
+              <div class="row">
+                <div class="rank rank--1">1</div>
+                <div class="row__name">01 老庄没收皮球</div>
+                <span class="faint" style="font-size:12px">✕</span>
+              </div>
+              <div class="row">
+                <div class="rank">2</div>
+                <div class="row__name">02 小王远射破门</div>
+                <span class="faint" style="font-size:12px">✕</span>
+              </div>
+              <div class="row">
+                <div class="rank">3</div>
+                <div class="row__name">03 老庄头球攻门</div>
+                <span class="faint" style="font-size:12px">✕</span>
+              </div>
+              <div class="row">
+                <div class="rank">4</div>
+                <div class="row__name">04 门将飞身扑救</div>
+                <span class="faint" style="font-size:12px">✕</span>
+              </div>
+              <div class="row">
+                <div class="rank">5</div>
+                <div class="row__name">05 意外乌龙</div>
+                <span class="faint" style="font-size:12px">✕</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <!-- -------------------------------------------------------------- foot -->
+      <div class="dlg__foot">
+        <span class="faint">已选 5/5 · 点击左侧片段按名次加入,NO.1 为最佳</span>
+        <div class="grow"></div>
+        <button class="btn btn--ghost">取消</button>
+        <button class="btn btn--primary">下一步</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

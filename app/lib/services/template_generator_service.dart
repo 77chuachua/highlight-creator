@@ -94,6 +94,21 @@ class TemplateGeneratorService {
         _nocturneTransition),
   ];
 
+  /// The design set a template *file* belongs to, matched on its file name.
+  ///
+  /// A user-imported template and an online set match nothing and return null,
+  /// which is how "this is not part of a built-in set" is expressed.
+  static DesignSet? setOfPath(String path) {
+    if (path.isEmpty) return null;
+    final name = path.split(RegExp(r'[\\/]')).last;
+    for (final set in allSets) {
+      for (final spec in set.specs) {
+        if (spec.fileName == name) return set;
+      }
+    }
+    return null;
+  }
+
   static const List<TemplateSpec> allSpecs = [
     _greenStartup,
     _greenEnding,

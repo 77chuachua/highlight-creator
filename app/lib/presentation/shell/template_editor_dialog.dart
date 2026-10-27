@@ -8,6 +8,8 @@ import 'package:highlight_creator/data/font_name.dart';
 import 'package:highlight_creator/data/ffi/video_processing_service.dart';
 import 'package:highlight_creator/di/injection.dart';
 import 'package:highlight_creator/domain/entities/template.dart';
+import 'package:highlight_creator/domain/repositories/template_repository.dart';
+import 'package:highlight_creator/services/error_logger.dart';
 import 'package:highlight_creator/domain/entities/template_manifest.dart';
 import 'package:highlight_creator/data/l10n.dart';
 import 'package:highlight_creator/presentation/shell/template_state.dart';
@@ -161,6 +163,11 @@ class _TemplateEditorDialogState
   Timer? _titleSaveDebounce;
   int _gen = 0;
   bool _busy = false;
+
+  /// Set in [dispose]: from then on `ref` is gone and the repository has to
+  /// come from the locator.
+  bool _disposing = false;
+
   String? _status;
   String? _error;
   double _progress = 0;
@@ -216,6 +223,9 @@ class _TemplateEditorDialogState
         _catalogNote = null;
       });
     } on TemplatePluginManifestError catch (e) {
+      // The manifest load can outlive the dialog; _s() reads ref, which throws
+      // once the widget is disposed.
+      if (!mounted) return;
       note = e.servedFromCache
           ? _s('模板清单离线，显示已缓存版本',
               'Template catalogue offline, showing cached copy')
@@ -241,9 +251,20 @@ class _TemplateEditorDialogState
 
   @override
   void dispose() {
+    // Flush the debounced writes instead of cancelling them: closing the dialog
+    // within the 600/800 ms window used to drop the edit silently. The flush
+    // runs after the widget is gone, where `ref` throws, so it reads the
+    // repository from the locator.
+    _disposing = true;
+    if (_saveDebounce?.isActive ?? false) {
+      _saveDebounce!.cancel();
+      unawaited(_persistFontConfig(_selected));
+    }
+    if (_titleSaveDebounce?.isActive ?? false) {
+      _titleSaveDebounce!.cancel();
+      unawaited(_persistTitle(_selected, _textCtrl.text.trim()));
+    }
     _debounce?.cancel();
-    _saveDebounce?.cancel();
-    _titleSaveDebounce?.cancel();
     _player?.dispose();
     _textCtrl.dispose();
     try {
@@ -355,22 +376,74 @@ class _TemplateEditorDialogState
         TemplateCategory.ending => _s('结尾', 'Ending'),
       };
 
-  Future<void> _applyFontConfig(_Entry entry) async {
-    Template? t = entry.userTemplate;
-    if (t == null && entry.spec != null) {
-      final spec = entry.spec!;
-      final dir = TemplateGeneratorService.templatesDir;
-      final templatePath = '$dir${Platform.pathSeparator}${spec.fileName}';
-      final type = switch (spec.category) {
-        TemplateCategory.startup => TemplateType.startup,
-        TemplateCategory.transition => TemplateType.transition,
-        TemplateCategory.ending => TemplateType.ending,
-      };
-      final repo = ref.read(templateRepositoryProvider);
-      final list = await repo.listByType(type);
-      t = list.where((x) => x.path == templatePath).firstOrNull;
+  /// Separator- and case-insensitive path key: the repository normalises paths
+  /// when it dedupes, so a raw string compare missed rows stored in another
+  /// separator/case form.
+  static String _pathKey(String p) => p.toLowerCase().replaceAll('\\', '/');
+
+  bool _samePath(String a, String b) => _pathKey(a) == _pathKey(b);
+
+  /// The template repository, or null when neither the provider nor the DI
+  /// container can hand one out.
+  ///
+  /// The provider comes first: it honours the test overrides. The locator is
+  /// the fallback for the flush that runs from dispose(), where `ref` throws.
+  TemplateRepository? _repo() {
+    if (!_disposing) {
+      try {
+        return ref.read(templateRepositoryProvider);
+      } catch (_) {
+        // Fall through to the locator.
+      }
     }
+    try {
+      return locator<TemplateRepository>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The registry row behind [entry], matched on the file it renders to.
+  ///
+  /// Built-in specs, user templates and catalogue templates all live in the
+  /// registry keyed by that path. Catalogue templates used to resolve to
+  /// nothing, so their settings loaded as defaults and were dropped on save
+  /// without a trace.
+  Future<Template?> _registeredTemplate(_Entry entry) async {
+    if (entry.userTemplate != null) return entry.userTemplate;
+    final path = entry.resolvedPath;
+    if (path == null) return null;
+    final repo = _repo();
+    if (repo == null) return null;
+    final list = await repo.listByType(entry.type);
+    return list.where((x) => _samePath(x.path, path)).firstOrNull;
+  }
+
+  /// Like [_registeredTemplate], but registers the row on first edit.
+  Future<Template?> _ensureRegisteredTemplate(_Entry entry) async {
+    final existing = await _registeredTemplate(entry);
+    if (existing != null) return existing;
+    final path = entry.resolvedPath;
+    if (path == null) return null;
+    final repo = _repo();
+    if (repo == null) return null;
+    return repo.save(Template(
+      id: '',
+      name: entry.label,
+      path: path,
+      type: entry.type,
+    ));
+  }
+
+  Future<void> _applyFontConfig(_Entry entry) async {
+    final t = await _registeredTemplate(entry);
     if (!mounted) return;
+    ErrorLogger.log(
+      '[template] load ${entry.key} found=${t != null} size=${t?.fontSize} '
+      'color=${t?.fontColor} pos=${t?.textPosition} show=${t?.showText}',
+      null,
+      source: 'template',
+    );
     setState(() {
       if (t?.fontSize != null) {
         _fontSize = t!.fontSize!.toDouble();
@@ -434,44 +507,49 @@ class _TemplateEditorDialogState
 
   void _saveFontConfig() {
     _saveDebounce?.cancel();
+    // Capture the target now: the tab can switch before the timer fires.
+    final target = _selected;
     _saveDebounce = Timer(const Duration(milliseconds: 600), () async {
-      final repo = ref.read(templateRepositoryProvider);
-      Template? t = _selected.userTemplate;
-
-      // For built-in templates, find or create the registered version.
-      if (t == null && _selected.spec != null) {
-        final spec = _selected.spec!;
-        final dir = TemplateGeneratorService.templatesDir;
-        final templatePath = '$dir${Platform.pathSeparator}${spec.fileName}';
-        final type = switch (spec.category) {
-          TemplateCategory.startup => TemplateType.startup,
-          TemplateCategory.transition => TemplateType.transition,
-          TemplateCategory.ending => TemplateType.ending,
-        };
-        final list = await repo.listByType(type);
-        t = list.where((x) => x.path == templatePath).firstOrNull;
-        t ??= await repo.save(Template(
-          id: '',
-          name: spec.label,
-          path: templatePath,
-          type: type,
-        ));
-      }
-
-      if (t == null) return;
-      await repo.save(t.copyWith(
-        fontSize: _fontSize.round(),
-        fontColor: _colorHex,
-        fontPath: _customFont ?? (_fontKey != null ? _fontPresets[_fontKey] : null),
-        textPosition: switch (_pos) {
-          _TextPos.top => 'top',
-          _TextPos.middle => 'middle',
-          _TextPos.bottom => 'bottom',
-        },
-        showText: _showText,
-      ));
-      if (mounted) ref.read(templateRefreshProvider.notifier).state++;
+      await _persistFontConfig(target);
     });
+  }
+
+  /// Persist the font settings, never silently: a throw used to vanish into the
+  /// debounce timer and the edit looked unsaved.
+  Future<void> _persistFontConfig(_Entry target) async {
+    try {
+      await _persistFontConfigInner(target);
+    } catch (e, st) {
+      ErrorLogger.log(e, st, source: 'template-save');
+    }
+  }
+
+  Future<void> _persistFontConfigInner(_Entry target) async {
+    final t = await _ensureRegisteredTemplate(target);
+    if (t == null) {
+      ErrorLogger.log('[template] save skipped: no registration for $target',
+          null, source: 'template');
+      return;
+    }
+    final repo = _repo();
+    if (repo == null) return;
+    ErrorLogger.log(
+      '[template] save id=${t.id} size=${_fontSize.round()} color=$_colorHex',
+      null,
+      source: 'template',
+    );
+    await repo.save(t.copyWith(
+      fontSize: _fontSize.round(),
+      fontColor: _colorHex,
+      fontPath: _customFont ?? (_fontKey != null ? _fontPresets[_fontKey] : null),
+      textPosition: switch (_pos) {
+        _TextPos.top => 'top',
+        _TextPos.middle => 'middle',
+        _TextPos.bottom => 'bottom',
+      },
+      showText: _showText,
+    ));
+    if (mounted) ref.read(templateRefreshProvider.notifier).state++;
   }
 
   /// Download a catalogue template's script and render it.
@@ -815,6 +893,9 @@ class _TemplateEditorDialogState
           SizedBox(
             width: double.infinity,
             child: SegmentedButton<TemplateCategory>(
+              // A selected segment grows a checkmark, which reflows every
+              // segment and shoves the form below it sideways.
+              showSelectedIcon: false,
               segments: [
                 for (final c in TemplateCategory.values)
                   ButtonSegment(value: c, label: Text(_catLabel(c))),
@@ -1087,17 +1168,9 @@ class _TemplateEditorDialogState
     }
     final cat = entry.spec?.category;
     if (cat == null) return;
-    final type = switch (cat) {
-      TemplateCategory.startup => TemplateType.startup,
-      TemplateCategory.transition => TemplateType.transition,
-      TemplateCategory.ending => TemplateType.ending,
-    };
-    final repo = ref.read(templateRepositoryProvider);
-    final dir = TemplateGeneratorService.templatesDir;
-    final templatePath = '$dir${Platform.pathSeparator}${entry.spec!.fileName}';
-    final existing = await repo.listByType(type);
-    final registered =
-        existing.where((t) => t.path == templatePath).firstOrNull;
+    final registered = await _registeredTemplate(entry);
+    ErrorLogger.log('[template] title-load ${entry.key} '
+        'registered=${registered?.id}', null, source: 'template');
 
     final text =
         TemplateEditorDialog.resolvePreviewText(registered, fallback);
@@ -1122,33 +1195,35 @@ class _TemplateEditorDialogState
     final target = _selected;
     final text = _textCtrl.text.trim();
     _titleSaveDebounce = Timer(const Duration(milliseconds: 800), () async {
-      if (text.isEmpty) return;
-      final repo = ref.read(templateRepositoryProvider);
-      Template? t = target.userTemplate;
-      if (t == null && target.spec != null) {
-        final spec = target.spec!;
-        final dir = TemplateGeneratorService.templatesDir;
-        final templatePath = '$dir${Platform.pathSeparator}${spec.fileName}';
-        final type = switch (spec.category) {
-          TemplateCategory.startup => TemplateType.startup,
-          TemplateCategory.transition => TemplateType.transition,
-          TemplateCategory.ending => TemplateType.ending,
-        };
-        final existing = await repo.listByType(type);
-        t = existing.where((x) => x.path == templatePath).firstOrNull;
-        t ??= await repo.save(Template(
-          id: '',
-          name: spec.label,
-          path: templatePath,
-          type: type,
-        ));
-      }
-      if (t == null) return;
-
-      if (t.title != text) await repo.save(t.copyWith(title: text));
-      unawaited(_loadUserTemplates());
-      ref.read(templateRefreshProvider.notifier).state++;
+      await _persistTitle(target, text);
     });
+  }
+
+  /// Persist [text] as the title of [target].
+  Future<void> _persistTitle(_Entry target, String text) async {
+    try {
+      await _persistTitleInner(target, text);
+    } catch (e, st) {
+      ErrorLogger.log(e, st, source: 'template-save');
+    }
+  }
+
+  Future<void> _persistTitleInner(_Entry target, String text) async {
+    if (text.isEmpty) return;
+    final t = await _ensureRegisteredTemplate(target);
+    if (t == null) {
+      ErrorLogger.log('[template] title skipped: no registration for $target',
+          null, source: 'template');
+      return;
+    }
+    final repo = _repo();
+    if (repo == null) return;
+    ErrorLogger.log('[template] title id=${t.id} text=$text', null,
+        source: 'template');
+    if (t.title != text) await repo.save(t.copyWith(title: text));
+    if (!mounted) return; // flushed from dispose(): no UI left to refresh
+    unawaited(_loadUserTemplates());
+    ref.read(templateRefreshProvider.notifier).state++;
   }
 
   Widget _buildCard(ThemeData theme, _Entry entry) {

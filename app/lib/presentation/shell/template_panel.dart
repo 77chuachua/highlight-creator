@@ -319,9 +319,15 @@ class _TemplatePanelState extends ConsumerState<TemplatePanel> {
                         message: resolvedPath.isNotEmpty ? resolvedPath : t.name,
                         waitDuration: const Duration(milliseconds: 400),
                         child: GestureDetector(
-                          onTap: () => ref
-                              .read(selectedTemplatesProvider.notifier)
-                              .select(widget.type, t.id),
+                          onTap: () {
+                            final notifier =
+                                ref.read(selectedTemplatesProvider.notifier);
+                            if (widget.type == TemplateType.startup) {
+                              unawaited(notifier.selectStartupWithSet(t.id));
+                            } else {
+                              notifier.select(widget.type, t.id);
+                            }
+                          },
                           child: Container(
                           padding: const EdgeInsets.symmetric(
                               vertical: 3, horizontal: 4),

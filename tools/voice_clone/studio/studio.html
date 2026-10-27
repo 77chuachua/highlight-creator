@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>语音工作室</title>
+<style>
+  :root {
+    --ink: #0a0a0c;
+    --card: #16161a;
+    --card-2: #1d1d22;
+    --line: rgba(255, 255, 255, .08);
+    --gold: #f2b933;
+    --text: #ececf1;
+    --muted: rgba(255, 255, 255, .55);
+    --faint: rgba(255, 255, 255, .32);
+    --red: #ff6b6b;
+    --green: #4ec9a0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font: 13px/1.6 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 22px 22px 40px; }
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  header .badge {
+    width: 26px; height: 26px; border-radius: 8px; display: grid;
+    place-items: center; background: rgba(242, 185, 51, .14);
+    color: var(--gold); font-size: 14px;
+  }
+  h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .3px; }
+  .sub { color: var(--muted); font-size: 12px; margin: 2px 0 18px 36px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+  }
+  .card h2 {
+    font-size: 12px; font-weight: 600; margin: 0 0 10px;
+    color: var(--gold); letter-spacing: .4px;
+  }
+  .guide {
+    background: var(--card-2); border-radius: 8px; padding: 12px 14px;
+    font-size: 14px; font-weight: 600; line-height: 1.8; user-select: all;
+  }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.7; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 12px; padding: 7px 14px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--card-2); color: var(--text);
+    cursor: pointer; transition: .15s;
+  }
+  button:hover:not(:disabled) { border-color: rgba(242, 185, 51, .5); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary {
+    background: var(--gold); border-color: var(--gold); color: #1a1400;
+    font-weight: 600;
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  button.rec { color: var(--red); border-color: rgba(255, 107, 107, .35); }
+  select, input[type=text], textarea {
+    font: inherit; font-size: 12px; padding: 6px 8px; border-radius: 7px;
+    background: var(--card-2); color: var(--text);
+    border: 1px solid var(--line); outline: none;
+  }
+  select { min-width: 260px; max-width: 100%; }
+  input[type=text] { width: 180px; }
+  textarea { width: 100%; resize: vertical; line-height: 1.7; }
+  input[type=range] { width: 220px; accent-color: var(--gold); }
+  .speedval { font-variant-numeric: tabular-nums; color: var(--gold);
+              font-size: 12px; min-width: 44px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  canvas { width: 100%; height: 72px; display: block; border-radius: 8px;
+           background: var(--card-2); margin-top: 10px; }
+  .meter { display: flex; gap: 16px; font-size: 11px; color: var(--muted);
+           margin-top: 6px; }
+  .meter b { color: var(--text); font-weight: 600; }
+  .msg { border-radius: 8px; padding: 9px 12px; margin-top: 10px; font-size: 12px; }
+  .msg.err { background: rgba(255, 107, 107, .1);
+             border: 1px solid rgba(255, 107, 107, .35); color: #ffb3b3; }
+  .msg.ok { background: rgba(78, 201, 160, .1);
+            border: 1px solid rgba(78, 201, 160, .3); color: #9ae6cb; }
+  .msg.warn { background: rgba(242, 185, 51, .1);
+              border: 1px solid rgba(242, 185, 51, .35); color: #f6d68a; }
+  .msg:empty { display: none; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .dot.on { background: var(--red); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .timer { font-variant-numeric: tabular-nums; color: var(--red); font-size: 12px; }
+  .foot { color: var(--faint); font-size: 11px; margin-top: 18px; line-height: 1.8; }
+  .servicebar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 12px; padding: 10px 12px; border-radius: var(--radius);
+    background: var(--card); border: 1px solid var(--line); font-size: 12px;
+  }
+  .servicebar .state { color: var(--muted); margin-right: auto; }
+  .servicebar .state b { color: var(--green); font-weight: 600; }
+  .servicebar.down .state b { color: var(--red); }
+  audio { height: 30px; margin-top: 8px; width: 100%; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="badge">🎙</div>
+    <h1>语音工作室</h1>
+  </header>
+  <div class="sub">录一段你的声音，或者载入已有的语音包；换语调参考、换文本试听，满意后另存为新语音包。</div>
+
+  <div class="card">
+    <h2>① 载入已有语音包（可选）</h2>
+    <div class="hint" style="margin:0 0 10px">
+      载入后音色就是它的；你可以换一个语调参考、用任意文本试听，再另存成一个新的语音包。
+    </div>
+    <div class="row">
+      <select id="packSelect"></select>
+      <button id="loadPack">载入</button>
+      <button id="refreshPacks">刷新列表</button>
+      <span class="hint" id="packInfo" style="margin:0">未载入</span>
+    </div>
+    <div class="msg" id="packMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>② 朗读下面这段话（要录音时才看）</h2>
+    <div class="guide" id="guide">…</div>
+    <div class="hint">请用平时解说的语气，在安静环境里距麦克风一拳距离，读完约 7~10 秒。参考音频越长越稳（上限 30 秒）。</div>
+  </div>
+
+  <div class="card">
+    <h2>③ 录音</h2>
+    <div class="row">
+      <select id="device"></select>
+      <button id="refreshDevices">刷新麦克风</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="record" class="rec">开始录音</button>
+      <div class="dot" id="dot"></div>
+      <span class="timer" id="timer">00:00</span>
+      <span class="hint" id="takeInfo" style="margin:0"></span>
+    </div>
+    <canvas id="wave" width="1480" height="144"></canvas>
+    <div class="meter">
+      <span>时长 <b id="mDur">—</b></span>
+      <span>峰值 <b id="mPeak">—</b></span>
+      <span>建议 <b>3~30 秒</b></span>
+    </div>
+    <audio id="takeAudio" controls style="display:none"></audio>
+    <div class="row" style="margin-top:12px; align-items:flex-start">
+      <span class="hint" style="margin:0; padding-top:6px">这段录音念的是</span>
+      <input type="text" id="promptText" style="flex:1; min-width:320px" maxlength="120">
+    </div>
+    <div class="hint" style="margin:4px 0 0">
+      引擎用它把参考音频和文字对齐。照着引导语录就留默认；用别人的音频时，最好填上它实际念的内容。
+    </div>
+    <div class="msg" id="recMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>④ 语调参考（可选）</h2>
+    <div class="hint" style="margin:0 0 10px">
+      选一段你觉得"语气对"的音频，克隆会沿用它的语调，但保留你的音色。不选就用你自己的语调。
+    </div>
+    <div class="row">
+      <button id="pickStyle">选择音频文件…</button>
+      <input type="file" id="styleFile" accept="audio/*" style="display:none">
+      <button id="clearStyle">清除</button>
+      <span class="hint" id="styleInfo" style="margin:0">未选择</span>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <span class="hint" style="margin:0">语速</span>
+      <input type="range" id="speed" min="0.85" max="1.30" step="0.05" value="1.00">
+      <span class="speedval" id="speedValue">1.00×</span>
+      <button id="resetSpeed">复位</button>
+    </div>
+    <div class="hint" style="margin:4px 0 0">
+      放慢会同时变低沉（引擎是对频谱做插值），不是单纯的慢放。
+    </div>
+
+    <div class="row" style="margin-top:12px; align-items:flex-start">
+      <span class="hint" style="margin:0; padding-top:6px">语气指令</span>
+      <input type="text" id="instruct" style="flex:1; min-width:320px" maxlength="80"
+             placeholder="可选，例如：用激动的语气喊出这句话 / 平稳地念新闻">
+    </div>
+    <div class="hint" style="margin:4px 0 0">
+      指令只影响语气，不会被念出来。填了就走「语气指令」这条路径；同时选了语调参考时，先在参考的语气上执行指令，再换成你的音色。
+    </div>
+    <div class="msg" id="styleMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>⑤ 试听</h2>
+    <div class="hint" style="margin:0 0 8px">
+      输入要念的句子（留空则用示例句）。第一次试听需要加载模型，约 20~40 秒。
+    </div>
+    <textarea id="previewText" rows="2"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button id="preview" class="primary">试听</button>
+      <button id="resetText">用示例句</button>
+      <span class="hint" id="previewInfo" style="margin:0"></span>
+    </div>
+    <audio id="previewAudio" controls style="display:none"></audio>
+    <div class="msg" id="previewMsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>⑥ 保存语音包</h2>
+    <div class="row">
+      <input type="text" id="packName" value="我的声音" maxlength="30">
+      <button id="save" class="primary">保存</button>
+      <span class="hint" id="saveInfo" style="margin:0"></span>
+    </div>
+    <div class="hint" style="margin:6px 0 0">同名的语音包不会被覆盖，会自动加「 (2)」。</div>
+    <div class="msg" id="saveMsg"></div>
+  </div>
+
+  <div class="servicebar" id="serviceBar">
+    <span class="state" id="serviceInfo">服务运行中</span>
+    <button id="restartService">重启服务</button>
+    <button id="quitService">关闭服务</button>
+  </div>
+
+  <div class="foot">
+    录音和克隆都只在本机运行，音频不会上传。保存位置：
+    <code>%USERPROFILE%\HighlightCreator\voices\</code><br>
+    关掉这个页面后，回到应用点「创建语音包」旁边的列表即可看到新语音。
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let recording = false;
+let tick = null;
+let startedAt = 0;
+let sampleText = '';
+
+async function api(path, body, raw, headers) {
+  const options = { method: body === undefined ? 'GET' : 'POST' };
+  if (body !== undefined) {
+    if (raw) {
+      options.body = body;
+      options.headers = headers || {};
+    } else {
+      options.body = JSON.stringify(body);
+      options.headers = { 'Content-Type': 'application/json' };
+    }
+  }
+  const response = await fetch(path, options);
+  return response.json();
+}
+
+function showMsg(el, text, kind) {
+  el.className = 'msg' + (kind ? ' ' + kind : '');
+  el.textContent = text || '';
+}
+
+function drawWave(envelope) {
+  const canvas = $('wave');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#1d1d22';
+  ctx.fillRect(0, 0, w, h);
+  const bars = envelope && envelope.length ? envelope : new Array(120).fill(0);
+  const slot = w / bars.length;
+  for (let i = 0; i < bars.length; i++) {
+    const value = Math.max(0.012, bars[i]);
+    const barH = value * (h * 0.86);
+    ctx.fillStyle = recording ? '#ff6b6b' : '#f2b933';
+    ctx.globalAlpha = recording ? 0.85 : 0.7;
+    ctx.fillRect(i * slot + slot * 0.22, (h - barH) / 2, slot * 0.56, barH);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function applyTake(take, note) {
+  if (!take) return;
+  $('mDur').textContent = take.seconds.toFixed(1) + ' 秒';
+  $('mPeak').textContent = take.peak.toFixed(2);
+  $('takeAudio').src = '/api/audio/take?v=' + Date.now();
+  $('takeAudio').style.display = 'block';
+  drawWave(take.envelope);
+  let message = note;
+  if (!message) {
+    if (take.seconds < 3) message = '太短了，建议 3 秒以上';
+    else if (take.seconds > 30) message = '超过 30 秒，引擎会只用最后 30 秒';
+    else if (take.peak < 0.02) message = '音量偏低，靠近麦克风一点';
+    else if (take.peak > 0.99) message = '有削波，离麦克风远一点';
+    else message = '已录好 ✓';
+  }
+  $('takeInfo').textContent = message;
+}
+
+function fillPacks(packs) {
+  const select = $('packSelect');
+  select.innerHTML = '';
+  if (!packs.length) {
+    const option = document.createElement('option');
+    option.textContent = '还没有语音包';
+    select.appendChild(option);
+    $('loadPack').disabled = true;
+    return;
+  }
+  $('loadPack').disabled = false;
+  for (const pack of packs) {
+    const option = document.createElement('option');
+    option.value = pack.id;
+    option.textContent = pack.name +
+      (pack.seconds ? '（' + Number(pack.seconds).toFixed(1) + ' 秒）' : '') +
+      (pack.hasStyle ? ' · 带语调' : '');
+    select.appendChild(option);
+  }
+}
+
+function styleLabel(path) {
+  if (!path) return '未选择';
+  return '已选择：' + path.split('\\').pop();
+}
+
+async function loadState() {
+  const state = await api('/api/state');
+  sampleText = state.sample;
+  $('guide').textContent = state.guide;
+  if (!$('promptText').value.trim()) $('promptText').value = state.guide;
+  $('speedValue').textContent = Number($('speed').value).toFixed(2) + '×';
+  if (!$('previewText').value.trim()) {
+    $('previewText').value = state.sample;
+  }
+  fillPacks(state.packs || []);
+
+  const device = $('device');
+  device.innerHTML = '';
+  for (const name of state.devices) {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    device.appendChild(option);
+  }
+  if (!state.devices.length) {
+    const option = document.createElement('option');
+    option.textContent = state.deviceError ? '无法列出麦克风' : '未找到麦克风';
+    device.appendChild(option);
+    showMsg($('recMsg'), state.deviceError || '没有找到可用的麦克风', 'err');
+  }
+  if (state.take) applyTake(state.take);
+  $('styleInfo').textContent = styleLabel(state.style);
+  if (!state.engine.installed) {
+    showMsg($('previewMsg'), '克隆引擎未安装完整，只能录音和保存，无法试听。', 'err');
+  }
+}
+
+$('refreshDevices').onclick = () => loadState();
+$('refreshPacks').onclick = () => loadState();
+
+$('loadPack').onclick = async () => {
+  const id = $('packSelect').value;
+  if (!id) return;
+  $('loadPack').disabled = true;
+  showMsg($('packMsg'), '载入中…', '');
+  try {
+    const result = await api('/api/packs/load', { id });
+    if (!result.ok) {
+      showMsg($('packMsg'), result.error, 'err');
+      return;
+    }
+    applyTake(result, '已载入「' + result.id + '」的录音');
+    $('styleInfo').textContent = styleLabel(result.style);
+    if (result.speed) {
+      $('speed').value = result.speed;
+      $('speedValue').textContent = Number(result.speed).toFixed(2) + '×';
+    }
+    $('instruct').value = result.instruct || '';
+    if (result.promptText) $('promptText').value = result.promptText;
+    $('packInfo').textContent = '当前音色：' + result.id;
+    if (result.text) {
+      sampleText = result.text;
+      $('previewText').value = result.text;
+    }
+    // Default to a new name so saving does not look like it overwrites.
+    $('packName').value = result.name + ' 改语调';
+    showMsg($('packMsg'),
+      '已载入。接下来可以换语调参考、改文本框试听，再另存为新语音包。', 'ok');
+  } finally {
+    $('loadPack').disabled = false;
+  }
+};
+
+$('record').onclick = async () => {
+  if (!recording) {
+    const device = $('device').value;
+    if (!device) { showMsg($('recMsg'), '没有可用的麦克风', 'err'); return; }
+    const result = await api('/api/record/start', { device });
+    if (!result.ok) { showMsg($('recMsg'), result.error, 'err'); return; }
+    recording = true;
+    startedAt = Date.now();
+    $('record').textContent = '停止录音';
+    $('dot').classList.add('on');
+    $('takeAudio').style.display = 'none';
+    $('packInfo').textContent = '当前音色：刚录的这一段';
+    showMsg($('recMsg'), '', '');
+    tick = setInterval(() => {
+      const seconds = Math.floor((Date.now() - startedAt) / 1000);
+      $('timer').textContent =
+        String(Math.floor(seconds / 60)).padStart(2, '0') + ':' +
+        String(seconds % 60).padStart(2, '0');
+      drawWave(new Array(120).fill(0.06 + Math.random() * 0.10));
+    }, 250);
+  } else {
+    clearInterval(tick);
+    recording = false;
+    $('record').textContent = '开始录音';
+    $('dot').classList.remove('on');
+    const result = await api('/api/record/stop', {});
+    if (!result.ok) { showMsg($('recMsg'), result.error, 'err'); return; }
+    applyTake(result.take);
+  }
+};
+
+$('speed').oninput = () => {
+  $('speedValue').textContent = Number($('speed').value).toFixed(2) + '×';
+};
+$('resetSpeed').onclick = () => {
+  $('speed').value = 1;
+  $('speedValue').textContent = '1.00×';
+};
+
+$('pickStyle').onclick = () => $('styleFile').click();
+$('styleFile').onchange = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  showMsg($('styleMsg'), '转换中…', '');
+  const bytes = await file.arrayBuffer();
+  const result = await api('/api/style', bytes, true,
+    { 'Content-Type': 'application/octet-stream', 'X-Filename': file.name });
+  if (!result.ok) {
+    $('styleInfo').textContent = '未选择';
+    showMsg($('styleMsg'), '语调参考导入失败：' + result.error, 'err');
+    return;
+  }
+  $('styleInfo').textContent = file.name + '（' + result.seconds.toFixed(1) + ' 秒）';
+  showMsg($('styleMsg'), '已替换语调参考。', 'ok');
+};
+
+$('clearStyle').onclick = async () => {
+  const result = await api('/api/style/clear', {});
+  if (!result.ok) { showMsg($('styleMsg'), result.error, 'err'); return; }
+  $('styleInfo').textContent = '未选择';
+  showMsg($('styleMsg'), '已清除语调参考。', 'ok');
+};
+
+$('resetText').onclick = () => { $('previewText').value = sampleText; };
+
+$('preview').onclick = async () => {
+  const text = $('previewText').value.trim();
+  $('preview').disabled = true;
+  showMsg($('previewMsg'), '正在合成，首次需要加载模型…', '');
+  $('previewInfo').textContent = '';
+  try {
+    const result = await api('/api/preview', {
+      text: text,
+      speed: Number($('speed').value),
+      instruct: $('instruct').value.trim(),
+      promptText: $('promptText').value.trim(),
+    });
+    if (!result.ok) {
+      showMsg($('previewMsg'), result.error, 'err');
+      return;
+    }
+    $('previewAudio').src = '/api/audio/preview?v=' + Date.now();
+    $('previewAudio').style.display = 'block';
+    $('previewAudio').play();
+    $('previewInfo').textContent = result.preview.seconds.toFixed(1) + ' 秒';
+    if (result.notice) {
+      // The engine dropped a style file that no longer exists.
+      $('styleInfo').textContent = '未选择';
+      showMsg($('previewMsg'),
+        result.notice + '试听已经生成，可以继续保存。', 'warn');
+    } else {
+      showMsg($('previewMsg'), '试听生成成功。满意就保存，不满意换语调或重录。', 'ok');
+    }
+  } finally {
+    $('preview').disabled = false;
+  }
+};
+
+$('save').onclick = async () => {
+  const name = $('packName').value.trim() || '我的声音';
+  $('save').disabled = true;
+  showMsg($('saveMsg'), '保存中…', '');
+  try {
+    const result = await api('/api/save', {
+      name: name,
+      speed: Number($('speed').value),
+      instruct: $('instruct').value.trim(),
+      promptText: $('promptText').value.trim(),
+    });
+    if (!result.ok) {
+      showMsg($('saveMsg'), result.error, 'err');
+      return;
+    }
+    $('saveInfo').textContent = result.name + '（' + result.seconds + ' 秒）';
+    if (result.notice) {
+      $('styleInfo').textContent = '未选择';
+      showMsg($('saveMsg'),
+        result.notice + '已保存到 ' + result.dir + '（不含语调参考）。', 'warn');
+    } else {
+      showMsg($('saveMsg'),
+        '已保存到 ' + result.dir + ' —— 回到应用刷新即可选到。', 'ok');
+    }
+    await loadState();
+  } finally {
+    $('save').disabled = false;
+  }
+};
+
+// ---- 服务生命周期 -------------------------------------------------------
+// 固定端口 + 单实例：重复启动只会打开已运行的那个。
+// 关掉标签页后没有心跳，服务在 idle-minutes（默认 15 分钟）后自己退出，
+// 这样不会再留下占着端口的死服务。
+async function pingService() {
+  try {
+    const info = await api('/api/ping');
+    return info.app === 'hlc-studio' ? info : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function markService(up, detail) {
+  const bar = $('serviceBar');
+  bar.classList.toggle('down', !up);
+  $('serviceInfo').innerHTML = up
+    ? '<b>服务运行中</b>' + (detail ? ' · ' + detail : '')
+    : '<b>服务未响应</b>' + (detail ? ' · ' + detail : '');
+}
+
+$('restartService').onclick = async () => {
+  $('restartService').disabled = true;
+  $('quitService').disabled = true;
+  markService(false, '正在重启…');
+  try {
+    await api('/api/restart', {});
+  } catch (_) {
+    // The old process may drop the connection as it exits; that is expected.
+  }
+  for (let attempt = 0; attempt < 40; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const info = await pingService();
+    if (info) {
+      markService(true, 'pid ' + info.pid + ' · 端口 ' + info.port);
+      location.reload();
+      return;
+    }
+  }
+  markService(false, '重启后没能连上，请重新运行 studio.bat');
+  $('restartService').disabled = false;
+  $('quitService').disabled = false;
+};
+
+$('quitService').onclick = async () => {
+  $('restartService').disabled = true;
+  $('quitService').disabled = true;
+  try {
+    await api('/api/quit', {});
+  } catch (_) {}
+  markService(false, '服务已关闭，可以关掉这个页面了');
+  document.querySelectorAll('.card, .sub, header').forEach((node) => {
+    node.style.opacity = '0.35';
+  });
+  document.querySelectorAll('button, input, textarea, select').forEach((node) => {
+    node.disabled = true;
+  });
+};
+
+// 心跳：标签页开着就保活，关掉就让服务按 idle-minutes 退出。
+setInterval(() => { pingService().then((info) => {
+  if (info) markService(true, 'pid ' + info.pid + ' · 端口 ' + info.port);
+}); }, 60000);
+
+drawWave(null);
+loadState().then(() => pingService().then((info) => {
+  if (info) markService(true, 'pid ' + info.pid + ' · 端口 ' + info.port);
+}));
+</script>
+<script id="hlc-studio-i18n">
+// Chinese/English switch for the studio. Deliberately self-contained: it does
+// not assume the page's markup, it rewrites whatever Chinese text it finds.
+(function () {
+  var LANG = localStorage.getItem('studio.lang') || 'zh';
+
+  // [Chinese fragment, English]. Longer fragments first so they win.
+  var MAP = [
+    ['录音和克隆都只在本机运行，音频不会上传。保存位置：', 'Recording and cloning run on this machine only; audio is never uploaded. Saved to: '],
+    ['载入后音色就是它的；你可以换一个语调参考、用任意文本试听，再另存成一个新的语音包。', 'The voice is that pack\u2019s. Swap the intonation reference, audition any text, then save it as a new pack.'],
+    ['关掉这个页面后，回到应用点「创建语音包」旁边的列表即可看到新语音。', 'Close this page and the new voice appears in the app\u2019s voice list.'],
+    ['请用平时解说的语气，在安静环境里距麦克风一拳距离，读完约 7~10 秒。参考音频越长越稳（上限 30 秒）。', 'Use your normal commentary voice, a fist away from the mic, in a quiet room; about 7-10 s. Longer references are steadier (30 s max).'],
+    ['选一段你觉得"语气对"的音频，克隆会沿用它的语调，但保留你的音色。不选就用你自己的语调。', 'Pick a clip whose delivery you like: cloning copies its intonation but keeps your timbre. Leave it empty to use your own.'],
+    ['指令只影响语气，不会被念出来。填了就走「语气指令」这条路径；同时选了语调参考时，先在参考的语气上执行指令，再换成你的音色。', 'The instruction only shapes the delivery, it is never read out. With an intonation reference the instruction is applied on top of it, then your timbre is restored.'],
+    ['输入要念的句子（留空则用示例句）。第一次试听需要加载模型，约 20~40 秒。', 'Text to speak (empty uses the sample). The first audition loads the model, about 20-40 s.'],
+    ['录一段你的声音，或者载入已有的语音包；换语调参考、换文本试听，满意后另存为新语音包。', 'Record your voice or load an existing pack; tune the intonation and the text, then save a new pack.'],
+    ['放慢会同时变低沉（引擎是对频谱做插值），不是单纯的慢放。', 'Slowing down also lowers the pitch (the engine interpolates the spectrum); it is not plain slow-motion.'],
+    ['引擎用它把参考音频和文字对齐。照着引导语录就留默认；用别人的音频时，最好填上它实际念的内容。', 'The engine aligns the reference against this text. Keep the default when you read the prompt; with someone else\u2019s audio, type what it actually says.'],
+    ['同名不会覆盖，会自动加「 (2)」。', 'An existing pack is kept; the new one gets a " (2)" suffix.'],
+    ['① 载入已有语音包（可选）', '\u2460 Load an existing voice pack (optional)'],
+    ['② 朗读下面这段话（要录音时才看）', '\u2461 Read this aloud (only when recording)'],
+    ['③ 录音', '\u2462 Record'],
+    ['④ 语调参考（可选）', '\u2463 Intonation reference (optional)'],
+    ['⑤ 试听', '\u2464 Audition'],
+    ['⑥ 保存语音包', '\u2465 Save the voice pack'],
+    ['这段录音念的是', 'This recording says'],
+    ['可选，例如：用激动的语气喊出这句话 / 平稳地念新闻', 'optional, e.g. shout it excitedly / read it like the news'],
+    ['正在合成，首次需要加载模型…', 'Synthesising; the first run loads the model\u2026'],
+    ['试听已经生成，可以继续保存。', 'Audition ready, you can save it now.'],
+    ['试听生成成功。满意就保存，不满意换语调或重录。', 'Audition ready. Save it if you like it, or change the intonation and try again.'],
+    ['克隆引擎未安装完整，只能录音和保存，无法试听。', 'The cloning engine is incomplete: recording and saving work, audition does not.'],
+    ['重启后没能连上，请重新运行 studio.bat', 'Could not reconnect after the restart; run studio.bat again'],
+    ['服务已关闭，可以关掉这个页面了', 'Service stopped, you can close this page'],
+    ['语调参考导入失败：', 'Importing the intonation reference failed: '],
+    ['已替换语调参考。', 'Intonation reference replaced.'],
+    ['已清除语调参考。', 'Intonation reference cleared.'],
+    ['没有可用的麦克风', 'No usable microphone'],
+    ['没有找到可用的麦克风', 'No microphone found'],
+    ['无法列出麦克风', 'Could not list microphones'],
+    ['语音工作室', 'Voice Studio'],
+    ['载入', 'Load'],
+    ['刷新列表', 'Refresh list'],
+    ['刷新麦克风', 'Refresh microphones'],
+    ['未载入', 'not loaded'],
+    ['当前音色：', 'current voice: '],
+    ['载入中…', 'Loading\u2026'],
+    ['转换中…', 'Converting\u2026'],
+    ['开始录音', 'Start recording'],
+    ['停止录音', 'Stop recording'],
+    ['时长', 'length'],
+    ['峰值', 'peak'],
+    ['建议', 'target'],
+    ['已录好 ✓', 'recorded ✓'],
+    ['太短了，建议 3 秒以上', 'too short, aim for 3 s or more'],
+    ['超过 30 秒，引擎会只用最后 30 秒', 'over 30 s: only the last 30 s is used'],
+    ['音量偏低，靠近麦克风一点', 'too quiet, move closer'],
+    ['有削波，离麦克风远一点', 'clipping, move away a little'],
+    ['选择音频文件…', 'Choose an audio file\u2026'],
+    ['清除', 'Clear'],
+    ['未选择', 'not selected'],
+    ['已选择：', 'selected: '],
+    ['语速', 'speed'],
+    ['复位', 'reset'],
+    ['语气指令', 'tone instruction'],
+    ['试听', 'Audition'],
+    ['用示例句', 'Use the sample'],
+    ['保存中…', 'Saving\u2026'],
+    ['保存', 'Save'],
+    ['已保存到 ', 'saved to '],
+    ['服务运行中', 'Service running'],
+    ['服务未响应', 'Service not responding'],
+    ['重启服务', 'Restart'],
+    ['关闭服务', 'Stop'],
+    ['正在重启…', 'Restarting\u2026'],
+    ['端口', 'port'],
+    ['正在加载模型…', 'loading the model\u2026']
+  ].sort(function (a, b) { return b[0].length - a[0].length; });
+
+  var CJK = /[\u4e00-\u9fff]/;
+
+  function translate(text) {
+    for (var i = 0; i < MAP.length; i += 1) {
+      if (text.indexOf(MAP[i][0]) !== -1) {
+        text = text.split(MAP[i][0]).join(MAP[i][1]);
+      }
+    }
+    return text;
+  }
+
+  var busy = false;
+
+  function walk(root) {
+    if (LANG !== 'en' || busy) return;
+    busy = true;
+    try {
+      var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+      var node;
+      while ((node = walker.nextNode())) {
+        var value = node.nodeValue;
+        if (value && CJK.test(value)) {
+          var next = translate(value);
+          if (next !== value) node.nodeValue = next;
+        }
+      }
+      var els = root.querySelectorAll ? root.querySelectorAll('[placeholder],[title]') : [];
+      for (var i = 0; i < els.length; i += 1) {
+        ['placeholder', 'title'].forEach(function (attr) {
+          var v = els[i].getAttribute(attr);
+          if (v && CJK.test(v)) {
+            var n = translate(v);
+            if (n !== v) els[i].setAttribute(attr, n);
+          }
+        });
+      }
+    } finally {
+      busy = false;
+    }
+  }
+
+  // Text the page inserts later (statuses, errors) goes through here too.
+  var observer = new MutationObserver(function (records) {
+    for (var i = 0; i < records.length; i += 1) {
+      var target = records[i].target;
+      walk(target && target.nodeType === 1 ? target : document.body);
+      if (records[i].type === 'characterData' && target.parentNode) {
+        walk(target.parentNode);
+      }
+    }
+  });
+
+  function mount() {
+    var button = document.createElement('button');
+    button.textContent = LANG === 'en' ? '中文' : 'EN';
+    button.title = 'Switch language';
+    button.style.cssText = [
+      'position:fixed', 'top:14px', 'right:16px', 'z-index:9999',
+      'font:600 12px "Segoe UI","Microsoft YaHei",sans-serif',
+      'padding:6px 12px', 'border-radius:7px', 'cursor:pointer',
+      'background:#1d1d22', 'color:#f2b933',
+      'border:1px solid rgba(255,255,255,.16)'
+    ].join(';');
+    button.onclick = function () {
+      localStorage.setItem('studio.lang', LANG === 'en' ? 'zh' : 'en');
+      location.reload();
+    };
+    document.body.appendChild(button);
+
+    if (LANG === 'en') {
+      walk(document.body);
+      observer.observe(document.body, {
+        childList: true, subtree: true, characterData: true
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mount);
+  } else {
+    mount();
+  }
+
+  // The guide text and the server's messages follow the chosen language.
+  if (LANG === 'en' && !window.__hlcFetchPatched) {
+    window.__hlcFetchPatched = true;
+    var original = window.fetch;
+    window.fetch = function (url, options) {
+      if (typeof url === 'string' && url.indexOf('/api/state') === 0) {
+        url = url + (url.indexOf('?') === -1 ? '?' : '&') + 'lang=' + LANG;
+      }
+      return original(url, options);
+    };
+    // loadState() already ran with the default language before this block was
+    // parsed; fetch the guide text and the messages again in this one.
+    if (typeof window.loadState === 'function') {
+      setTimeout(function () { window.loadState(); }, 0);
+    }
+  }
+})();
+</script>
+</body>
+</html>

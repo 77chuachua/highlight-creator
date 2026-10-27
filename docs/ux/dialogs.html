@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 对话框集合</title>
+<link rel="stylesheet" href="assets/proto.css">
+<style>
+  /* Only these pages need modal frames, so they live here. */
+  .stack { width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 34px; }
+  .frame__cap {
+    font-size: 12px; color: var(--faint); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .frame__cap b { color: var(--text); font-weight: 600; }
+  .frame__cap code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: 11px; color: var(--gold);
+  }
+  .modal {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: 0 22px 60px rgba(0, 0, 0, .6);
+    padding: 20px 22px 14px;
+  }
+  .modal__title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; margin-bottom: 12px;
+  }
+  .modal__title .ico { font-size: 16px; }
+  .modal__text { font-size: 13px; line-height: 1.75; color: var(--text); }
+  .modal__hint { font-size: 12px; line-height: 1.7; color: var(--muted); }
+  .modal__actions {
+    display: flex; align-items: center; gap: 4px; margin-top: 18px;
+    justify-content: flex-end;
+  }
+  .modal__actions .grow { flex: 1; }
+  .gstep { display: flex; gap: 9px; margin-top: 10px; }
+  .gstep__num {
+    width: 20px; height: 20px; border-radius: 50%; flex: none;
+    border: 1px solid var(--gold); color: var(--gold);
+    display: grid; place-items: center; font-size: 11px;
+  }
+  .gstep__text { font-size: 12.5px; line-height: 1.7; color: var(--text); }
+  .warn {
+    background: rgba(240, 74, 74, .11); border: 1px solid rgba(240, 74, 74, .3);
+    border-radius: 6px; padding: 8px 10px; font-size: 12px;
+    line-height: 1.7; color: var(--red-soft); margin-bottom: 12px;
+  }
+  .sect { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .sect__title { font-size: 12.5px; font-weight: 600; color: var(--gold); margin-bottom: 6px; }
+
+  /* SimpleDialog options */
+  .opt {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 10px; margin: 2px -10px; border-radius: 8px;
+    font-size: 13px; color: var(--text); cursor: pointer;
+  }
+  .opt:hover { background: rgba(255, 255, 255, .05); }
+
+  /* cache rows */
+  .crow {
+    background: var(--card); border: 1px solid var(--line-soft);
+    border-radius: var(--radius); padding: 8px 10px 6px; margin-bottom: 8px;
+  }
+  .crow__head { display: flex; align-items: center; gap: 8px; }
+  .crow__name { font-size: 12px; font-weight: 600; }
+  .crow__size { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .crow__what { font-size: 11px; color: var(--faint); line-height: 1.6; margin-top: 3px; }
+  .crow__acts { display: flex; align-items: center; gap: 2px; }
+</style>
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a><span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html" class="on">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型</span>
+</nav>
+
+<div class="stage stage--top">
+  <div class="stack">
+
+    <!-- ------------------------------------------------ 1. voice pack guide -->
+    <div>
+      <div class="frame__cap">
+        <b>语音包指南</b>
+        <code>voice_pack_guide_dialog.dart</code>
+        <span>· AlertDialog · 内容宽 520 · 「创建语音包」在未装工作室时打开它，并带顶部警告</span>
+      </div>
+      <div class="modal" style="width:564px">
+        <div class="modal__title"><span class="ico">🎙</span>Windows 语音包安装指南</div>
+        <div class="warn">
+          本机还没有安装本地克隆引擎（voice_clone 目录不在）。下面「用我自己的声音」这一节要装好引擎才能用。
+        </div>
+        <div class="modal__text">
+          解说语音完全在本机合成,不联网、不需要 key。Windows 自带的中文语音包偏机械,
+          想要更自然的效果,按下面任一路径下载「自然语音」。
+        </div>
+        <div class="gstep">
+          <div class="gstep__num">1</div>
+          <div class="gstep__text">
+            设置 → 辅助功能 → 讲述人 → 添加语音 →
+            下载「中文(简体)」的自然语音(微软晓晓 / 晓伊 / 云希等)
+          </div>
+        </div>
+        <div class="gstep">
+          <div class="gstep__num">2</div>
+          <div class="gstep__text">
+            设置 → 时间和语言 → 语言和区域 → 中文(简体) →
+            语言选项 → 语音 → 下载语音包
+          </div>
+        </div>
+        <div class="modal__hint" style="margin-top:12px">
+          装好后回到本应用点「刷新」即可看到新语音;如果列表没变,重启一次应用。
+        </div>
+
+        <div class="sect">
+          <div class="sect__title">用我自己的声音</div>
+          <div class="modal__text">
+            点「创建语音包」会打开语音工作室（一个独立的录音程序）。
+            照着提示词读完、试听满意后保存，回到这里「解说语音」里就多出一个语音包。
+            也可以点「导入」，直接拿别人给的 .voicepack 文件夹，或者一个录音文件。
+          </div>
+          <div class="modal__hint" style="margin-top:10px">
+            克隆本身需要本地引擎（Python + 显卡），不随安装包附带:
+            运行 tools\voice_clone\setup.bat 装一次，之后全程离线，音频不出本机。
+          </div>
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost">↗ 打开讲述人语音设置</button>
+          <button class="btn btn--ghost">↗ 打开语言语音包设置</button>
+          <button class="btn btn--ghost">⟳ 刷新</button>
+          <button class="btn btn--primary">知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- --------------------------------------------------- 2. import dialog -->
+    <div>
+      <div class="frame__cap">
+        <b>导入语音包</b>
+        <code>top5_dialog.dart → _importVoicePack()</code>
+        <span>· SimpleDialog · 两个入口:已有包 / 单个录音</span>
+      </div>
+      <div class="modal" style="width:360px">
+        <div class="modal__title">导入语音包</div>
+        <div class="opt">📁 选择一个 .voicepack 文件夹</div>
+        <div class="opt">🎵 选择一个录音文件（自动打包）</div>
+      </div>
+    </div>
+
+    <!-- ---------------------------------------------------- 3. cache dialog -->
+    <div>
+      <div class="frame__cap">
+        <b>缓存文件</b>
+        <code>cache_dialog.dart</code>
+        <span>· 宽 640 · 每项显示占用与作用 · 清空走回收站</span>
+      </div>
+      <div class="modal" style="width:640px">
+        <div class="modal__title">缓存文件</div>
+
+        <div class="crow">
+          <div class="crow__head">
+            <span class="crow__name">五佳球切片缓存</span>
+            <span class="crow__size">18 个 / 123.4 MB</span>
+          </div>
+          <div class="crow__what">每个时间槽的一份干净切片，预览和生成共用；清空后下次自动重切，只是慢一点。</div>
+          <div class="crow__acts">
+            <button class="btn btn--ghost btn--sm">📂 打开</button>
+            <button class="btn btn--ghost btn--sm">🗑 清空</button>
+          </div>
+        </div>
+
+        <div class="crow">
+          <div class="crow__head">
+            <span class="crow__name">五佳球配音</span>
+            <span class="crow__size">27 个 / 15.3 MB</span>
+          </div>
+          <div class="crow__what">TTS / 克隆 / 试听生成的音频，渲染时已混进成片。</div>
+          <div class="crow__acts">
+            <button class="btn btn--ghost btn--sm">📂 打开</button>
+            <button class="btn btn--ghost btn--sm">🗑 清空</button>
+          </div>
+        </div>
+
+        <div class="crow">
+          <div class="crow__head">
+            <span class="crow__name">五佳球渲染中间文件</span>
+            <span class="crow__size">44 个 / 41.4 MB</span>
+          </div>
+          <div class="crow__what">排名卡、转场、片段和拼接用的 master，拼接后就没用了。</div>
+          <div class="crow__acts">
+            <button class="btn btn--ghost btn--sm">📂 打开</button>
+            <button class="btn btn--ghost btn--sm">🗑 清空</button>
+          </div>
+        </div>
+
+        <div class="crow">
+          <div class="crow__head">
+            <span class="crow__name">内置模板视频</span>
+            <span class="crow__size">29 个 / 22.6 MB</span>
+          </div>
+          <div class="crow__what">转场 / 开场 / 结尾模板，首次使用时自动渲染；清空后下次要重新生成几分钟。</div>
+          <div class="crow__acts">
+            <button class="btn btn--ghost btn--sm">📂 打开</button>
+            <button class="btn btn--ghost btn--sm">🗑 清空</button>
+          </div>
+        </div>
+
+        <div class="crow">
+          <div class="crow__head">
+            <span class="crow__name">Make 渲染中间产物</span>
+            <span class="crow__size">111 个 / 8.8 GB</span>
+          </div>
+          <div class="crow__what">每次 Make 都会重做。清空后 5佳球 不再复用它们，改为从源视频切（稍慢）。</div>
+          <div class="crow__acts">
+            <button class="btn btn--ghost btn--sm">📂 打开</button>
+            <button class="btn btn--ghost btn--sm">🗑 清空</button>
+          </div>
+        </div>
+
+        <div class="modal__actions">
+          <div class="grow"></div>
+          <button class="btn btn--ghost">⟳ 刷新</button>
+          <button class="btn btn--ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------- 4. cache confirm dialog -->
+    <div>
+      <div class="frame__cap">
+        <b>清空二次确认</b>
+        <code>cache_dialog.dart → _confirmClear()</code>
+        <span>· 显示条目名 / 文件数 / 占用 / 后果，并说明会进回收站</span>
+      </div>
+      <div class="modal" style="width:480px">
+        <div class="modal__title">清空「五佳球切片缓存」?</div>
+        <div class="modal__text">共 18 个文件 / 123.4 MB。</div>
+        <div class="modal__hint" style="margin-top:8px">
+          每个时间槽的一份干净切片，预览和生成共用；清空后下次自动重切，只是慢一点。
+        </div>
+        <div class="modal__hint" style="margin-top:8px">
+          这些文件会进回收站，需要的话可以还原。
+        </div>
+        <div class="modal__actions">
+          <button class="btn btn--ghost">取消</button>
+          <button class="btn btn--primary">确定清空</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

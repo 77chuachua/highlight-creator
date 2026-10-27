@@ -11,10 +11,13 @@ import 'package:highlight_creator/domain/entities/template.dart';
 import 'package:highlight_creator/domain/entities/timeslot.dart';
 import 'package:highlight_creator/presentation/player/player_view_model.dart';
 import 'package:highlight_creator/presentation/player/record_view_model.dart';
+import 'package:highlight_creator/presentation/shell/cache_dialog.dart';
 import 'package:highlight_creator/presentation/shell/go_to_dialog.dart';
 import 'package:highlight_creator/presentation/shell/preview_dialog.dart';
 import 'package:highlight_creator/presentation/shell/zoom_in_point_dialog.dart';
 import 'package:highlight_creator/presentation/shell/template_state.dart';
+import 'package:highlight_creator/presentation/shell/clip_breakdown_dialog.dart';
+import 'package:highlight_creator/presentation/shell/top5_dialog.dart';
 
 /// Transport controls, mark, speed, make, undo/redo — per Windows UI design.
 class ControlPanel extends ConsumerWidget {
@@ -44,29 +47,29 @@ class ControlPanel extends ConsumerWidget {
         child: Row(
           children: [
           _IconBtn(Icons.replay_5, l10n.seekBack,
-              () => playerVm.seekRelative(const Duration(seconds: -5))),
-          const SizedBox(width: 2),
+              () => playerVm.seekRelative(Duration(seconds: -5))),
+          SizedBox(width: 2),
           _IconBtn(
             playerState.isPlaying ? Icons.pause : Icons.play_arrow,
             l10n.playPause,
             () => playerVm.togglePlayPause(),
             size: 28,
           ),
-          const SizedBox(width: 2),
+          SizedBox(width: 2),
           _IconBtn(Icons.forward_5, l10n.seekForward,
-              () => playerVm.seekRelative(const Duration(seconds: 5))),
-          const SizedBox(width: 2),
+              () => playerVm.seekRelative(Duration(seconds: 5))),
+          SizedBox(width: 2),
           // Stop button hidden per user request.
-          const VerticalDivider(width: 16),
+          VerticalDivider(width: 16),
 
           Tooltip(
             message: l10n.markTooltip,
             child: FilledButton.icon(
-              key: const Key('mark_button'),
+              key: Key('mark_button'),
               onPressed: playerState.hasVideo
                   ? () => openMarkDialog(context, ref)
                   : null,
-              icon: const Icon(Icons.outlined_flag, size: 16),
+              icon: Icon(Icons.outlined_flag, size: 16),
               label: Text(l10n.mark),
               style: FilledButton.styleFrom(
                 minimumSize: const Size(110, 34),
@@ -77,7 +80,7 @@ class ControlPanel extends ConsumerWidget {
               ),
             ),
           ),
-          const VerticalDivider(width: 16),
+          VerticalDivider(width: 16),
 
           SizedBox(
             width: 75,
@@ -105,12 +108,12 @@ class ControlPanel extends ConsumerWidget {
             ),
           ),
 
-          const VerticalDivider(width: 16),
+          VerticalDivider(width: 16),
 
           // "I want to" menu relocated here from the toolbar (issues.md:
           // Make + Result Folder buttons are gone; the menu covers both).
           PopupMenuButton<String>(
-            key: const Key('want_menu'),
+            key: Key('want_menu'),
             tooltip: l10n.wantToMenu,
             position: PopupMenuPosition.over,
             offset: const Offset(0, -8),
@@ -125,27 +128,74 @@ class ControlPanel extends ConsumerWidget {
                 case 'goto':
                   openGoToDialog(context, ref);
                   break;
+                case 'top5':
+                  openTop5Dialog(context, ref);
+                  break;
+                case 'breakdown':
+                  openClipBreakdownDialog(context, ref);
+                  break;
+                case 'cache':
+                  CacheDialog.show(context);
+                  break;
               }
             },
+            // Three groups, in the order the work happens: make something,
+            // then go look at it, then the per-slot tools.
             itemBuilder: (context) => [
               PopupMenuItem(
                 value: 'make',
                 enabled: recState.timeslots.isNotEmpty,
                 child: Row(
                   children: [
-                    const Icon(Icons.auto_fix_high, size: 16),
-                    const SizedBox(width: 8),
+                    Icon(Icons.auto_fix_high, size: 16),
+                    SizedBox(width: 8),
                     Text(l10n.wantMake),
                   ],
                 ),
               ),
+              // Always available: a weekly reel needs this project's slots,
+              // but monthly and yearly reels are picked from already saved
+              // entries, so a brand-new project can still make one.
+              PopupMenuItem(
+                value: 'top5',
+                child: Row(
+                  children: [
+                    Icon(Icons.emoji_events_outlined, size: 16),
+                    SizedBox(width: 8),
+                    Text(l10n.menuTop5),
+                  ],
+                ),
+              ),
+              PopupMenuDivider(),
               PopupMenuItem(
                 value: 'result',
                 child: Row(
                   children: [
-                    const Icon(Icons.folder_open, size: 16),
-                    const SizedBox(width: 8),
+                    Icon(Icons.folder_open, size: 16),
+                    SizedBox(width: 8),
                     Text(l10n.resultFolder),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'cache',
+                child: Row(
+                  children: [
+                    Icon(Icons.cleaning_services_outlined, size: 16),
+                    SizedBox(width: 8),
+                    Text(l10n.menuCache),
+                  ],
+                ),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'breakdown',
+                enabled: recState.timeslots.isNotEmpty,
+                child: Row(
+                  children: [
+                    Icon(Icons.list_alt_outlined, size: 16),
+                    SizedBox(width: 8),
+                    Text(l10n.menuClipBreakdown),
                   ],
                 ),
               ),
@@ -153,8 +203,8 @@ class ControlPanel extends ConsumerWidget {
                 value: 'goto',
                 child: Row(
                   children: [
-                    const Icon(Icons.gps_fixed, size: 16),
-                    const SizedBox(width: 8),
+                    Icon(Icons.gps_fixed, size: 16),
+                    SizedBox(width: 8),
                     Text(l10n.wantGoTo),
                   ],
                 ),
@@ -174,7 +224,7 @@ class ControlPanel extends ConsumerWidget {
                 children: [
                   Icon(Icons.lightbulb_outline,
                       size: 15, color: theme.colorScheme.primary),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Text(l10n.wantToMenu,
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w600)),
@@ -184,17 +234,17 @@ class ControlPanel extends ConsumerWidget {
             ),
           ),
           // Auto Gen button hidden per issues.md
-          // const SizedBox(width: 2),
+          // SizedBox(width: 2),
           // FilledButton.icon(
-          //   key: const Key('auto_gen_button'),
+          //   key: Key('auto_gen_button'),
           //   onPressed: (recState.selectedProject?.sources ?? []).isNotEmpty
           //       ? () => _onAutoGenPressed(context, ref, l10n, recVm)
           //       : null,
-          //   icon: const Icon(Icons.auto_awesome, size: 16),
+          //   icon: Icon(Icons.auto_awesome, size: 16),
           //   label: Text(l10n.autoGen),
           //   style: FilledButton.styleFrom(
-          //     minimumSize: const Size(100, 34),
-          //     textStyle: const TextStyle(fontSize: 12, fontFamily: 'Roboto'),
+          //     minimumSize: Size(100, 34),
+          //     textStyle: TextStyle(fontSize: 12, fontFamily: 'Roboto'),
           //     backgroundColor: Colors.purple.shade700,
           //     foregroundColor: Colors.white,
           //     disabledBackgroundColor: Colors.purple.shade700.withAlpha(60),
@@ -470,7 +520,7 @@ class ControlPanel extends ConsumerWidget {
                       ),
                       Text(
                         '${(progress * 100).round()}%',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -478,7 +528,7 @@ class ControlPanel extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Text(l10n.renderDialogMessage),
               ],
             ),
@@ -499,6 +549,7 @@ class ControlPanel extends ConsumerWidget {
         transitionTemplate: transitionTemplate,
         transitionTemplatePath: transitionTemplatePath,
         endingVideoPath: endingPath != null && File(endingPath).existsSync() ? endingPath : null,
+        endingTemplate: endingTemplate,
         bgMusicPath: bgMusicPath != null && File(bgMusicPath).existsSync() ? bgMusicPath : null,
         width: width,
         height: height,
@@ -571,7 +622,7 @@ class ControlPanel extends ConsumerWidget {
                   border: const OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Row(
                 children: [
                   Checkbox(

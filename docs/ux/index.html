@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>五佳球 · 界面原型</title>
+<link rel="stylesheet" href="assets/proto.css">
+<style>
+  .wrap { max-width: 1140px; margin: 0 auto; }
+  h1.page { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+  .lede { color: var(--muted); font-size: 13px; line-height: 1.85; margin: 0 0 26px; }
+  .lede code, .sw code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: 11.5px; color: var(--gold);
+  }
+  h2.sec {
+    font-size: 12px; font-weight: 600; color: var(--gold); letter-spacing: .6px;
+    margin: 30px 0 12px; display: flex; align-items: center; gap: 10px;
+  }
+  h2.sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .cardlink {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 14px 16px;
+    transition: .15s;
+  }
+  .cardlink:hover { border-color: rgba(242, 185, 51, .45); transform: translateY(-1px); }
+  .cardlink .name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .cardlink .name .n {
+    width: 20px; height: 20px; border-radius: 6px; flex: none;
+    background: rgba(242, 185, 51, .14); color: var(--gold);
+    display: grid; place-items: center; font-size: 11px;
+  }
+  .cardlink .what { font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 6px; }
+  .cardlink .src { font-size: 11px; color: var(--faint); margin-top: 8px; }
+  .cardlink .src code { color: var(--gold); background: none; border: 0; padding: 0; }
+
+  .sw { display: flex; flex-wrap: wrap; gap: 10px; }
+  .swatch {
+    width: 150px; border: 1px solid var(--line); border-radius: 8px;
+    overflow: hidden; background: var(--panel);
+  }
+  .swatch .chipc { height: 44px; }
+  .swatch .meta { padding: 7px 9px; font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .swatch .meta b { display: block; color: var(--text); font-size: 11.5px; }
+
+  table.grid { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.grid th, table.grid td {
+    text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line-soft);
+  }
+  table.grid th { color: var(--faint); font-weight: 500; font-size: 11px; }
+  table.grid td code { color: var(--gold); font-size: 11px; }
+
+  .flow {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 12px; color: var(--muted);
+  }
+  .flow .box {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; color: var(--text); font-size: 12px;
+  }
+  .flow .box small { display: block; color: var(--faint); font-size: 10.5px; margin-top: 2px; }
+  .flow .arrow { color: var(--dim); }
+</style>
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html" class="on">总览</a><span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 2026-10</span>
+</nav>
+
+<div class="stage stage--top">
+  <div class="wrap">
+    <h1 class="page">五佳球 · 界面原型</h1>
+    <p class="lede">
+      这套页面是<b>静态原型</b>，逐屏对照当前实现绘制（尺寸、文案、配色都取自代码），
+      用浏览器直接打开即可，不需要构建。改动界面后请同步这里，保持一致。
+      <br>原型覆盖范围：五佳球两步流程、语音包相关对话框、缓存对话框、语音工作室。
+    </p>
+
+    <h2 class="sec">界面清单</h2>
+    <div class="cards">
+      <a class="cardlink" href="top5-picker.html">
+        <div class="name"><span class="n">1</span>五佳球 · 步骤 1 选择</div>
+        <div class="what">层级/类型切换、周期标签、已选计数；左侧候选池（星级 + 描述 + 起止时间）、右侧名次槽位。</div>
+        <div class="src"><code>top5_dialog.dart → _buildPicker()</code></div>
+      </a>
+      <a class="cardlink" href="top5-editor.html">
+        <div class="name"><span class="n">2</span>五佳球 · 步骤 2 预览与解说</div>
+        <div class="what">解说语音行（系统语音 + 语音包 · 我的声音 · 7.0 秒）、错误条、视频预览与解说卡片。</div>
+        <div class="src"><code>_buildEditor() / _buildVoiceRow() / _commentList()</code></div>
+      </a>
+      <a class="cardlink" href="top5-generated.html">
+        <div class="name"><span class="n">3</span>五佳球 · 已生成</div>
+        <div class="what">footer 变为 观看 / 重新生成 / 关闭；附生成中（转圈 + 百分比 + 禁用）状态。</div>
+        <div class="src"><code>_footer()</code></div>
+      </a>
+      <a class="cardlink" href="dialogs.html">
+        <div class="name"><span class="n">4</span>对话框集合</div>
+        <div class="what">语音包指南、导入语音包、缓存文件、清空二次确认。</div>
+        <div class="src"><code>voice_pack_guide_dialog.dart / cache_dialog.dart</code></div>
+      </a>
+      <a class="cardlink" href="studio.html">
+        <div class="name"><span class="n">5</span>语音工作室（插件）</div>
+        <div class="what">五步：读提示词 → 录音（波形/时长/峰值）→ 语调参考 → 试听克隆 → 保存语音包。</div>
+        <div class="src"><code>voice_clone/studio/studio.html</code></div>
+      </a>
+      <a class="cardlink" href="../../docs/voice_clone.md">
+        <div class="name"><span class="n">i</span>安装指南（文档）</div>
+        <div class="what">插件的前置条件、安装、语音包格式、常见问题、进程协议。</div>
+        <div class="src"><code>docs/voice_clone.md</code></div>
+      </a>
+    </div>
+
+    <h2 class="sec">设计令牌</h2>
+    <div class="sw">
+      <div class="swatch"><div class="chipc" style="background:#f2b933"></div>
+        <div class="meta"><b>金色 · 主色</b>#F2B933</div></div>
+      <div class="swatch"><div class="chipc" style="background:#0a0a0c"></div>
+        <div class="meta"><b>底色</b>#0A0A0C</div></div>
+      <div class="swatch"><div class="chipc" style="background:#141418"></div>
+        <div class="meta"><b>对话框面板</b>#141418</div></div>
+      <div class="swatch"><div class="chipc" style="background:#1e1e24"></div>
+        <div class="meta"><b>卡片</b>#1E1E24</div></div>
+      <div class="swatch"><div class="chipc" style="background:#e2342b"></div>
+        <div class="meta"><b>名次徽章（非第一）</b>#E2342B</div></div>
+      <div class="swatch"><div class="chipc" style="background:#4ec9a0"></div>
+        <div class="meta"><b>完成态</b>#4EC9A0</div></div>
+      <div class="swatch"><div class="chipc" style="background:#ff8a80"></div>
+        <div class="meta"><b>错误文字</b>#FF8A80</div></div>
+      <div class="swatch"><div class="chipc" style="background:rgba(255,255,255,.55)"></div>
+        <div class="meta"><b>次要文字</b>白 55%</div></div>
+    </div>
+
+    <h2 class="sec">尺寸与字号</h2>
+    <table class="grid">
+      <tr><th>项</th><th>值</th><th>出现在</th></tr>
+      <tr><td>五佳球对话框</td><td><code>1140 × 720</code>（窗口小于 1180/760 时各减 40）</td><td>top5_dialog</td></tr>
+      <tr><td>步骤芯片</td><td><code>18px 圆 + 10px 数字</code>，激活金色、未激活白 38%</td><td>_stepChip()</td></tr>
+      <tr><td>名次徽章</td><td><code>20px 圆</code>，NO.1 金色，其余 <code>#E2342B</code></td><td>_rankBadge()</td></tr>
+      <tr><td>空槽位</td><td><code>20px 圆</code>，白 24% 描边</td><td>_slotCircleEmpty()</td></tr>
+      <tr><td>语音行下拉</td><td><code>300px</code></td><td>_buildVoiceRow()</td></tr>
+      <tr><td>预览 / 解说分栏</td><td><code>flex 3 : 2</code></td><td>_buildEditor()</td></tr>
+      <tr><td>标题 / 正文 / 状态</td><td><code>15 / 13 / 12 / 11 / 10 px</code></td><td>全局</td></tr>
+      <tr><td>圆角</td><td><code>面板 10、卡片 10、输入 6、徽章 8</code></td><td>全局</td></tr>
+      <tr><td>工作室内容宽</td><td><code>780px</code>（浏览器窗口）</td><td>studio.html</td></tr>
+      <tr><td>缓存对话框宽</td><td><code>640px</code></td><td>cache_dialog</td></tr>
+    </table>
+
+    <h2 class="sec">角色与产物</h2>
+    <div class="flow">
+      <div class="box">主程序<small>highlight-creator</small></div>
+      <span class="arrow">—— 读 plugin.json →</span>
+      <div class="box">语音插件<small>voice_clone\（可选装）</small></div>
+      <span class="arrow">← JSON 行协议合成 ——</span>
+      <div class="box">语音包<small>voices\*.voicepack</small></div>
+    </div>
+    <p class="lede" style="margin-top:14px">
+      插件缺失时五佳球照常可用，只是没有「语音包」选项；点「创建语音包」会打开语音包指南。
+      语音包是纯数据（reference.wav + style.wav + manifest.json），可拷贝、可导入、可删除。
+    </p>
+
+    <h2 class="sec">打开方式</h2>
+    <p class="lede" style="margin:0">
+      直接双击 <code>docs/ux/index.html</code>，或用任何静态服务器托管 <code>docs/ux/</code>。
+      页面不依赖网络与脚本（除 <code>assets/proto.css</code>），离线可看。
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

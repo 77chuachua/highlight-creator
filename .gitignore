@@ -95,7 +95,9 @@ __cmake_systeminformation/
 # Testing and Temp
 temp/
 app/temp/
-tools/
+# Portable binaries stay out of git; the voice-cloning installer is source.
+tools/*
+!tools/voice_clone/
 test/e2e/
 ffmpeg_command
 issues.md

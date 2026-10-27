@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 语音工作室</title>
+<link rel="stylesheet" href="assets/proto.css">
+<style>
+  .studio {
+    width: 780px; margin: 0 auto;
+    padding: 22px 22px 30px; background: var(--ink);
+    border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, .65);
+  }
+  .studio header { display: flex; align-items: center; gap: 10px; }
+  .studio h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: .3px; }
+  .studio .sub { color: var(--muted); font-size: 12px; margin: 2px 0 18px 36px; }
+  .scard {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px;
+  }
+  .scard h2 {
+    font-size: 12px; font-weight: 600; margin: 0 0 10px;
+    color: var(--gold); letter-spacing: .4px;
+  }
+  .guidebox {
+    background: var(--panel-2); border-radius: 8px; padding: 12px 14px;
+    font-size: 14px; font-weight: 600; line-height: 1.8; user-select: all;
+  }
+  .shint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.7; }
+  .srow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .textarea {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 7px; padding: 8px 9px; font-size: 12px; line-height: 1.7;
+    color: var(--text); min-height: 46px;
+  }
+  .wavebox {
+    margin-top: 10px; border-radius: 8px; background: var(--panel-2);
+    color: rgba(242, 185, 51, .72);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+  .timer { font-variant-numeric: tabular-nums; color: var(--red); font-size: 12px; }
+  .meter { display: flex; gap: 16px; font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .meter b { color: var(--text); font-weight: 600; }
+  .msg { border-radius: 8px; padding: 9px 12px; margin-top: 10px; font-size: 12px; }
+  .msg.ok { background: rgba(78, 201, 160, .1); border: 1px solid rgba(78, 201, 160, .3); color: #9ae6cb; }
+  .audiobar {
+    display: flex; align-items: center; gap: 10px; margin-top: 8px;
+    height: 30px; padding: 0 10px; border-radius: 6px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-size: 11px; color: var(--muted);
+  }
+  .audiobar .play { color: var(--gold); }
+  .audiobar .track { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .12); }
+  .audiobar .track i { display: block; width: 0; height: 3px; border-radius: 2px; background: var(--gold); }
+  .foot { color: var(--dim); font-size: 11px; margin-top: 18px; line-height: 1.8; }
+  .servicebar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 12px; padding: 10px 12px; border-radius: var(--radius);
+    background: var(--panel); border: 1px solid var(--line); font-size: 12px;
+  }
+  .servicebar .state { color: var(--muted); margin-right: auto; }
+  .servicebar .state b { color: var(--green); font-weight: 600; }
+  .foot code { color: var(--faint); }
+</style>
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a><span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html" class="on">语音工作室</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 内容宽 780</span>
+</nav>
+
+<div class="stage stage--top">
+  <div>
+    <div class="note">
+      <b>语音工作室</b> —— 插件里的独立程序（<code>voice_clone\studio\</code>），
+      由五佳球对话框的「创建语音包」拉起。标准库 HTTP 服务 + 系统浏览器，
+      和主程序共用同一套深色 + 金色令牌。
+      下面展示的是<b>载入语音包 → 换语调 → 自定义文本试听 → 另存</b>这条新流程。
+    </div>
+
+    <div class="studio">
+      <header>
+        <div class="badge">🎙</div>
+        <h1>语音工作室</h1>
+      </header>
+      <div class="sub">录一段你的声音，或者载入已有的语音包；换语调参考、换文本试听，满意后另存为新语音包。</div>
+
+      <div class="scard">
+        <h2>① 载入已有语音包（可选）</h2>
+        <div class="shint" style="margin:0 0 10px">
+          载入后音色就是它的；你可以换一个语调参考、用任意文本试听，再另存成一个新的语音包。
+        </div>
+        <div class="srow">
+          <div class="select" style="min-width:260px">
+            <span>我的声音（7.0 秒）· 带语调</span>
+            <span class="caret">▼</span>
+          </div>
+          <button class="btn">载入</button>
+          <button class="btn">刷新列表</button>
+          <span class="shint" style="margin:0">当前音色：我的声音</span>
+        </div>
+        <div class="msg ok">已载入。接下来可以换语调参考、改文本框试听，再另存为新语音包。</div>
+      </div>
+
+      <div class="scard">
+        <h2>② 朗读下面这段话（要录音时才看）</h2>
+        <div class="guidebox">欢迎来到本周最佳进球时刻，让我们一起回顾赛场上的每一个精彩瞬间。</div>
+        <div class="shint">请用平时解说的语气，在安静环境里距麦克风一拳距离，读完约 7~10 秒。参考音频越长越稳（上限 30 秒）。</div>
+      </div>
+
+      <div class="scard">
+        <h2>③ 录音</h2>
+        <div class="srow">
+          <div class="select" style="min-width:260px">
+            <span>Microphone Array (2- Realtek(R) Audio)</span>
+            <span class="caret">▼</span>
+          </div>
+          <button class="btn">刷新麦克风</button>
+        </div>
+        <div class="srow" style="margin-top:10px">
+          <button class="btn" style="border-color:rgba(240,74,74,.35);color:var(--red-soft)">开始录音</button>
+          <span class="dot"></span>
+          <span class="timer">00:00</span>
+          <span class="shint" style="margin:0">已载入「我的声音」的录音</span>
+        </div>
+
+        <!-- waveform: one stroked path, 36 strokes, symmetric around the centre -->
+        <div class="wavebox">
+          <svg viewBox="0 0 720 72" width="100%" height="72" preserveAspectRatio="none">
+            <path d="M10,32v8 M30,28v16 M50,22v28 M70,30v12 M90,16v40 M110,24v24 M130,12v48 M150,26v20
+                     M170,20v32 M190,34v4 M210,18v36 M230,10v52 M250,22v28 M270,28v16 M290,14v44 M310,24v24
+                     M330,30v12 M350,18v36 M370,8v56 M390,20v32 M410,26v20 M430,32v8 M450,16v40 M470,24v24
+                     M490,12v48 M510,28v16 M530,22v28 M550,30v12 M570,18v36 M590,26v20 M610,10v52 M630,22v28
+                     M650,28v16 M670,32v8 M690,24v24 M710,30v12"
+                  stroke="rgba(242,185,51,.72)" stroke-width="7" stroke-linecap="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="meter">
+          <span>时长 <b>7.0 秒</b></span>
+          <span>峰值 <b>0.30</b></span>
+          <span>建议 <b>3~30 秒</b></span>
+        </div>
+        <div class="audiobar">
+          <span class="play">▶</span>
+          <span class="track"><i style="width:0"></i></span>
+          <span>0:00 / 0:07</span>
+        </div>
+        <div class="srow" style="margin-top:12px; align-items:flex-start">
+          <span class="shint" style="margin:0; padding-top:6px">这段录音念的是</span>
+          <div class="textarea" style="flex:1; min-height:0">欢迎来到本周最佳进球时刻，让我们一起回顾赛场上的每一个精彩瞬间。</div>
+        </div>
+        <div class="shint" style="margin:4px 0 0">
+          引擎用它把参考音频和文字对齐。照着引导语录就留默认；用别人的音频时，最好填上它实际念的内容。
+        </div>
+      </div>
+
+      <div class="scard">
+        <h2>④ 语调参考（可选）</h2>
+        <div class="shint" style="margin:0 0 10px">
+          选一段你觉得"语气对"的音频，克隆会沿用它的语调，但保留你的音色。不选就用你自己的语调。
+        </div>
+        <div class="srow">
+          <button class="btn">选择音频文件…</button>
+          <button class="btn">清除</button>
+          <span class="shint" style="margin:0">已选择：style.wav</span>
+        </div>
+        <div class="srow" style="margin-top:12px">
+          <span class="shint" style="margin:0">语速</span>
+          <div style="width:220px;height:4px;border-radius:2px;background:rgba(255,255,255,.14);position:relative">
+            <span style="position:absolute;left:46%;top:-6px;width:16px;height:16px;border-radius:50%;background:var(--gold)"></span>
+          </div>
+          <span style="color:var(--gold);font-size:12px">1.15×</span>
+          <button class="btn btn--sm">复位</button>
+        </div>
+        <div class="shint" style="margin:4px 0 0">
+          放慢会同时变低沉（引擎是对频谱做插值），不是单纯的慢放。
+        </div>
+        <div class="srow" style="margin-top:12px; align-items:flex-start">
+          <span class="shint" style="margin:0; padding-top:6px">语气指令</span>
+          <div class="textarea" style="flex:1; min-height:0">用激动的语气喊出这句话</div>
+        </div>
+        <div class="shint" style="margin:4px 0 0">
+          指令只影响语气，不会被念出来。填了就走「语气指令」这条路径；同时选了语调参考时，先在参考的语气上执行指令，再换成你的音色。
+        </div>
+        <div class="msg ok">已替换语调参考。</div>
+      </div>
+
+      <div class="scard">
+        <h2>⑤ 试听</h2>
+        <div class="shint" style="margin:0 0 8px">
+          输入要念的句子（留空则用示例句）。第一次试听需要加载模型，约 20~40 秒。
+        </div>
+        <div class="textarea">这段文字是我自己输入的，用来验证试听支持任意文本。</div>
+        <div class="srow" style="margin-top:8px">
+          <button class="btn btn--primary">试听</button>
+          <button class="btn">用示例句</button>
+          <span class="shint" style="margin:0">8.7 秒</span>
+        </div>
+        <div class="audiobar">
+          <span class="play">▶</span>
+          <span class="track"><i style="width:0"></i></span>
+          <span>0:00 / 0:09</span>
+        </div>
+        <div class="msg ok">试听生成成功。满意就保存，不满意换语调或重录。</div>
+      </div>
+
+      <div class="scard">
+        <h2>⑥ 保存语音包</h2>
+        <div class="srow">
+          <input class="input" style="width:180px" value="我的声音 改语调">
+          <button class="btn btn--primary">保存</button>
+          <span class="shint" style="margin:0">我的声音 改语调（7.0 秒）</span>
+        </div>
+        <div class="shint" style="margin:6px 0 0">同名的语音包不会被覆盖，会自动加「 (2)」。</div>
+        <div class="msg ok">已保存到 %USERPROFILE%\HighlightCreator\voices\我的声音 改语调.voicepack —— 回到应用刷新即可选到。</div>
+      </div>
+
+      <div class="servicebar">
+        <span class="state"><b>服务运行中</b> · pid 63516 · 端口 17321</span>
+        <button class="btn btn--sm">重启服务</button>
+        <button class="btn btn--sm">关闭服务</button>
+      </div>
+
+      <div class="foot">
+        录音和克隆都只在本机运行，音频不会上传。保存位置：
+        <code>%USERPROFILE%\HighlightCreator\voices\</code><br>
+        关掉这个页面后，回到应用点「创建语音包」旁边的列表即可看到新语音。
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

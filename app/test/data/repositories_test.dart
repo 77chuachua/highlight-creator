@@ -17,14 +17,17 @@ void main() {
 
     setUp(() => repo = ProjectRepositoryImpl());
 
-    test('create assigns id and timestamps', () async {
+    test('create assigns an id and keeps the project date', () async {
+      // createdAt is the project's own date (the match day); the Top-5 period
+      // is derived from it, so create must not stamp it with "now".
       final p = await repo.create(Project(
         id: '', name: 'Test', userId: 'u1',
         createdAt: DateTime(2020), updatedAt: DateTime(2020),
       ));
       expect(p.id.isNotEmpty, true);
       expect(p.name, 'Test');
-      expect(p.createdAt.year, DateTime.now().year);
+      expect(p.createdAt.year, 2020);
+      expect(p.updatedAt.year, DateTime.now().year);
     });
 
     test('getById returns project', () async {

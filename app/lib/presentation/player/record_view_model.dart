@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:highlight_creator/data/app_paths.dart';
+import 'package:highlight_creator/data/project_file.dart';
 import 'package:highlight_creator/domain/entities/project.dart';
 import 'package:highlight_creator/domain/entities/timeslot.dart';
 import 'package:highlight_creator/domain/entities/video_source.dart';
@@ -62,6 +63,8 @@ class RecordViewModel extends Notifier<RecordState> {
     }
     return {
       'name': project?.name ?? 'New Project',
+      // Round-trips the project date so loading does not depend on the name.
+      'date': projectDateValue(project?.createdAt ?? DateTime.now()),
       'sources': (project?.sources ?? const <VideoSource>[]).map((s) => {
         'id': s.id,
         'filePath': s.filePath,
@@ -95,11 +98,12 @@ class RecordViewModel extends Notifier<RecordState> {
     if (_autoSavePath != null) return;
     final interval = ref.read(autoSaveIntervalProvider);
     if (interval == null) return;
-    final now = DateTime.now();
-    String two(int v) => v.toString().padLeft(2, '0');
+    // Named after the project's date, not today: reopening next week must
+    // still point at the same file.
+    final date = state.selectedProject?.createdAt ?? DateTime.now();
     final dir = Directory(AppPaths.resultsDir)..createSync(recursive: true);
     _autoSavePath = '${dir.path}${Platform.pathSeparator}'
-        '${now.year}-${two(now.month)}-${two(now.day)}.hlcproj';
+        '${projectDateValue(date)}.hlcproj';
     _autoSaveTimer ??= Timer.periodic(interval, (_) => unawaited(autoSaveNow()));
   }
 
@@ -154,13 +158,18 @@ class RecordViewModel extends Notifier<RecordState> {
   }
 
   /// Create a new project (clears dirty flag).
-  Future<void> createProject(String name) async {
+  /// Create a project.
+  ///
+  /// [date] is the day the project *belongs to* (the match date), stored in
+  /// `createdAt`: the Top-5 period is derived from it, so loading a
+  /// 2026-10-21 project in week 44 must not move its reels to week 44.
+  Future<void> createProject(String name, {DateTime? date}) async {
     _stopAutoSave();
     final project = await _projectRepo.create(Project(
       id: '',
       name: name,
       userId: 'local',
-      createdAt: DateTime.now(),
+      createdAt: date ?? DateTime.now(),
       updatedAt: DateTime.now(),
     ));
     await _loadProjects();
@@ -429,7 +438,8 @@ class RecordViewModel extends Notifier<RecordState> {
     final name = json['name'] as String? ?? 'Imported Project';
 
     // Create the project (this will clear previous selection and create fresh).
-    await createProject(name);
+    // The date comes from the file: its `date` key, else its name.
+    await createProject(name, date: projectDateOf(json, filePath));
     final pid = state.selectedProjectId;
     if (pid == null) return;
 

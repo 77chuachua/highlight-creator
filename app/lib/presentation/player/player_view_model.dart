@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
@@ -6,6 +7,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:highlight_creator/domain/entities/video_source.dart';
 import 'package:highlight_creator/presentation/player/player_state.dart';
 import 'package:highlight_creator/presentation/player/record_view_model.dart';
+import 'package:highlight_creator/services/error_logger.dart';
 
 /// The file path of the source that follows [currentPath] in [sources], or
 /// null when the current file is not a project source or is the last one.
@@ -82,6 +84,20 @@ class VideoPlayerViewModel extends Notifier<VideoPlayerState> {
 
     state = state.copyWith(status: PlayerStatus.loading, videoPath: path, clearError: true);
 
+    // A project opened from an old location still names the videos it was
+    // built from, and those paths are dead. mpv does not fail fast on a
+    // missing file — the playlist simply never starts — which used to leave the
+    // player on the loading spinner forever with no way out. Catch it here,
+    // before any Player is created, so the user gets the path in the error.
+    if (!File(path).existsSync()) {
+      ErrorLogger.log('video not found: $path', null, source: 'player');
+      state = state.copyWith(
+        status: PlayerStatus.error,
+        errorMessage: '视频文件不存在 / video not found:\n$path',
+      );
+      return;
+    }
+
     try {
       final player = Player();
       _player = player;
@@ -90,7 +106,11 @@ class VideoPlayerViewModel extends Notifier<VideoPlayerState> {
       // Media.start sets mpv's `start` property so a freshly opened video
       // resumes at the exact position instead of the head (the same trick the
       // auto-gen dialog uses for global-timeline seeks).
-      await player.open(Media(path, start: initialPosition));
+      final openClock = Stopwatch()..start();
+      await player.open(Media(path, start: initialPosition))
+          .timeout(const Duration(seconds: 20));
+      ErrorLogger.log('opened in ${openClock.elapsedMilliseconds}ms: $path', null,
+          source: 'player');
 
       // Superseded while opening: drop our player without touching the state
       // the newer load already owns.
@@ -122,7 +142,13 @@ class VideoPlayerViewModel extends Notifier<VideoPlayerState> {
       });
 
       _syncState();
-    } catch (e) {
+      // A playlist that reports neither playing nor paused would leave the
+      // spinner on top of a video that is already running.
+      if (seq == _loadSeq && state.status == PlayerStatus.loading) {
+        state = state.copyWith(status: PlayerStatus.paused);
+      }
+    } catch (e, st) {
+      ErrorLogger.log(e, st, source: 'player');
       if (seq == _loadSeq) {
         state = state.copyWith(
             status: PlayerStatus.error, errorMessage: 'Failed: $e');

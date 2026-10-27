@@ -87,6 +87,19 @@ class SettingsService {
     await _save();
   }
 
+  /// Store version the user chose to skip, so the update prompt does not ask
+  /// about the same release on every launch.
+  Future<String?> get updateSkippedVersion async {
+    await _ensureLoaded();
+    return _data['updateSkippedVersion'] as String?;
+  }
+
+  Future<void> setUpdateSkippedVersion(String version) async {
+    await _ensureLoaded();
+    _data['updateSkippedVersion'] = version;
+    await _save();
+  }
+
   Future<void> _save() async {
     try {
       final file = File(_path);

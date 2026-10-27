@@ -28,6 +28,9 @@ import 'package:highlight_creator/presentation/shell/timeline_track.dart';
 import 'package:highlight_creator/presentation/shell/go_to_dialog.dart';
 import 'package:highlight_creator/presentation/shell/template_editor_dialog.dart';
 import 'package:highlight_creator/services/template_generator_service.dart';
+import 'package:highlight_creator/services/store_update_service.dart';
+import 'package:highlight_creator/services/error_logger.dart';
+import 'package:highlight_creator/services/local_voice_service.dart';
 import 'package:highlight_creator/data/settings_service.dart';
 import 'package:highlight_creator/domain/entities/video_source.dart';
 
@@ -50,9 +53,13 @@ class _MainWindowState extends ConsumerState<MainWindow> with wm.WindowListener 
   void initState() {
     super.initState();
     windowManager.addListener(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _createDefaultProject();
-      _maybeShowGuide();
+      // The guide is what a new user should see first, and the Store check is a
+      // network round trip anyway, so the update prompt waits for it and the two
+      // never stack.
+      await _maybeShowGuide();
+      await _maybePromptStoreUpdate();
     });
   }
 
@@ -65,6 +72,8 @@ class _MainWindowState extends ConsumerState<MainWindow> with wm.WindowListener 
   @override
   void onWindowClose() {
     if (_closing) return;
+    // The clone worker holds ~4 GB of VRAM; it must not outlive the app.
+    LocalVoiceService.shutdown();
     final state = ref.read(recordProvider);
     if (!state.isDirty) {
       exit(0);
@@ -124,10 +133,68 @@ class _MainWindowState extends ConsumerState<MainWindow> with wm.WindowListener 
     final autoShow =
         await ref.read(settingsServiceProvider).guideAutoShow;
     if (!autoShow || !mounted) return;
-    unawaited(showDialog<void>(
+    await showDialog<void>(
       context: context,
       builder: (_) => const GuideDialog(),
-    ));
+    );
+  }
+
+  /// Ask the Microsoft Store whether a newer package is waiting, and say so.
+  ///
+  /// Windows never prompts on its own, and the Store page shows only "Open" for
+  /// an app it already considers installed, so this is the only path that tells
+  /// the user an update exists. A version the user already declined is not
+  /// raised again; anything other than a clear "available" (a dev build, or a
+  /// package the Store did not install) is logged and left alone.
+  Future<void> _maybePromptStoreUpdate() async {
+    final info = await StoreUpdateService.checkWhenReady();
+    if (!mounted) return;
+    if (!info.isAvailable) {
+      debugPrint('store update: $info');
+      if (info.state == 'unavailable' && info.detail != null) {
+        ErrorLogger.log(
+          'Store update check unavailable: ${info.detail}',
+          null,
+          source: 'store_update',
+        );
+      }
+      return;
+    }
+
+    final version = info.version ?? '';
+    final settings = ref.read(settingsServiceProvider);
+    if (version.isNotEmpty && await settings.updateSkippedVersion == version) {
+      return;
+    }
+    if (!mounted) return;
+
+    final l10n = ref.read(l10nProvider);
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.updateAvailableTitle),
+        content: Text(
+          version.isEmpty
+              ? l10n.updateAvailableMessage
+              : '${l10n.updateAvailableMessage}\n\n$version',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.updateLater),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.updateNow),
+          ),
+        ],
+      ),
+    );
+    if (go == true) {
+      await StoreUpdateService.openStoreUpdates();
+    } else if (version.isNotEmpty) {
+      await settings.setUpdateSkippedVersion(version);
+    }
   }
 
   @override

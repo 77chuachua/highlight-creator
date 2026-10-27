@@ -164,6 +164,16 @@ cargo fmt --all
 
 ---
 
+## Optional: local voice cloning plugin
+
+The Top-5 "my own voice" feature needs a separately installed plugin (Python +
+CUDA + a 5.2 GB model, ~15 GB total). It is never bundled with the app.
+
+    tools\voice_clone\setup.bat          # install / re-run to repair
+    tools\voice_clone\setup.bat --check  # report state only
+
+See [voice_clone.md](voice_clone.md) for prerequisites, the voice-pack format,
+troubleshooting and the worker protocol.
 ## Code Generation
 
 After modifying database tables or adding new `flutter_rust_bridge` API

@@ -11,12 +11,11 @@ class ProjectRepositoryImpl implements ProjectRepository {
   @override
   Future<Project> create(Project project) async {
     final id = project.id.isEmpty ? _uuid.v4() : project.id;
-    final now = DateTime.now();
-    final p = project.copyWith(
-      id: id,
-      createdAt: now,
-      updatedAt: now,
-    );
+    // Keep the createdAt the caller passed: it is the project's own date (the
+    // day the match was played), and the Top-5 week/month/year is derived from
+    // it. Overwriting it with "now" is what kept moving a 2026-10-21 project
+    // into the current week.
+    final p = project.copyWith(id: id, updatedAt: DateTime.now());
     _projects[id] = p;
     return p;
   }

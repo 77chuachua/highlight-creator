@@ -41,6 +41,14 @@ class AppPaths {
   static String get templateRegistryPath =>
       '$baseDir${Platform.pathSeparator}templates.json';
 
+  /// The local voice-cloning engine: a Python virtual environment with the
+  /// model, installed by tools/voice_clone/setup.bat.
+  static String get voiceCloneDir =>
+      '$baseDir${Platform.pathSeparator}voice_clone';
+
+  /// Imported voice packs, one `<name>.voicepack` folder each.
+  static String get voicesDir => '$baseDir${Platform.pathSeparator}voices';
+
   /// Ensure the base directory exists.
   static void ensureBaseDir() {
     Directory(baseDir).createSync(recursive: true);

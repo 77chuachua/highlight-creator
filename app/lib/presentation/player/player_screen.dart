@@ -152,7 +152,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (vc != null) {
       return GestureDetector(
         onTap: _onTapVideo,
+        // Keyed by controller: loadVideo() builds a new Player + VideoController
+        // for every file, and reusing the element left the previous, already
+        // disposed texture attached — audio played while the picture stayed
+        // black until a resize (maximize/fullscreen) forced a fresh surface.
         child: Video(
+          key: ValueKey(vc),
           controller: vc,
           fit: BoxFit.contain,
         ),

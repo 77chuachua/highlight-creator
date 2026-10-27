@@ -2,9 +2,30 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:highlight_creator/data/app_paths.dart';
 import 'package:highlight_creator/data/font_name.dart';
 import 'package:highlight_creator/domain/entities/timeslot.dart';
 import 'package:highlight_creator/domain/entities/template.dart';
+
+/// Thrown when a step of [VideoProcessingService.makeAll] left no output behind.
+///
+/// The steps used to be fire-and-forget: a failed slice still produced a final
+/// video, silently missing that highlight. The message goes straight into the
+/// editor's error slot, which prints `toString()` verbatim.
+class MakePipelineError implements Exception {
+  final String reason;
+
+  /// Tail of ffmpeg's stderr, which is where the actual cause lives.
+  final String ffmpegStderr;
+
+  const MakePipelineError(this.reason, this.ffmpegStderr);
+
+  @override
+  String toString() {
+    final tail = ffmpegStderr.trim();
+    return tail.isEmpty ? reason : '$reason\n$tail';
+  }
+}
 
 /// Service for video processing: transition generation, slicing, and combining.
 ///
@@ -656,6 +677,19 @@ class VideoProcessingService {
         _ => transition ? '(h-text_h)/2' : plateCenterYExpr,
       };
 
+  /// Caption for one slot: its sequence number, then the description.
+  ///
+  /// `slotCaption(0, 'xx助攻xx')` → `01 xx助攻xx`. The same string is burned
+  /// into the transition card and stamped bottom-left onto the clip, so the two
+  /// always agree — a clip re-cut or shared out of context still says which
+  /// highlight it is. Two digits is enough for a match's worth of slots; a
+  /// longer index widens past it rather than truncating.
+  static String slotCaption(int index, String description) {
+    final number = (index + 1).toString().padLeft(2, '0');
+    final body = description.trim();
+    return body.isEmpty ? number : '$number $body';
+  }
+
   /// Overlay a single line of text onto an existing video.
   ///
   /// Used by the template editor to preview a chosen font inside a real
@@ -704,6 +738,20 @@ class VideoProcessingService {
     return _simulateCopy(inputPath, outputPath, 'overlay text');
   }
 
+  /// The source window a slot covers.
+  ///
+  /// An explicit [Timeslot.elapse] uses `inPoint..inPoint+elapse` (editable on
+  /// the Auto Gen track); a legacy point-mark covers the 10 s before the mark.
+  /// Make and the Top-5 flow share it so both cut identical clips.
+  static ({double start, double duration}) slotWindow(Timeslot slot) {
+    if (slot.elapse > 0) {
+      return (start: slot.inPointMs / 1000.0, duration: slot.elapse / 1000.0);
+    }
+    final mark = slot.inPointMs / 1000.0;
+    final start = (mark - 10.0).clamp(0.0, mark);
+    return (start: start, duration: mark - start);
+  }
+
   /// Slice a sub-video from a source file.
   ///
   /// Real: uses ffmpeg seek + trim to the specified range, scaling to target resolution.
@@ -719,6 +767,8 @@ class VideoProcessingService {
     double? centerY,
     int width = 1280,
     int height = 720,
+    String? caption,
+    String? captionFontPath,
   }) async {
     if (hasRealEncoder) {
       // Accurate seeking: -ss after -i to avoid keyframe-rounding
@@ -766,24 +816,56 @@ class VideoProcessingService {
             ':fps=$fpsR';
       }
 
-      return _ffmpeg([
-        '-y',
-        '-ss', seekBefore.toStringAsFixed(3),
-        '-i', sourcePath,
-        '-ss', (startSecs - seekBefore).toStringAsFixed(3),
-        '-t', durationSecs.toStringAsFixed(3),
-        '-vf', vfFilter,
-        '-af', 'volume=0',
-        '-r', '60',
-        ..._h264Args(width: width, height: height, fps: 60),
-         '-c:a', 'aac',
-         '-ar', '44100',
-         '-ac', '2',
-         '-b:a', '128k',
-         '-pix_fmt', 'yuv420p',
-         outputPath,
-       ]);
-     }
+      // Caption watermark, bottom-left. Written to a temp file rather than
+      // inlined: the description is user copy, and `textfile=` is the only
+      // escaping-safe way to hand CJK text to drawtext. Both the size and the
+      // margin follow the output height so a 4K render carries the same
+      // relative weight as the 720p one.
+      File? captionFile;
+      if (caption != null && caption.trim().isNotEmpty) {
+        final font = _resolveOverlayFont(captionFontPath, caption);
+        captionFile = File('$outputPath.caption.txt');
+        await captionFile.writeAsString(caption);
+        final escaped = captionFile.path
+            .replaceAll('\\', '/')
+            .replaceAll(':', '\\:');
+        final captionSize = (26 * height / 720.0).round();
+        final captionMargin = (28 * height / 720.0).round();
+        vfFilter = '$vfFilter,'
+            'drawtext=${font != null ? "fontfile='$font':" : ''}'
+            "textfile='$escaped':fontsize=$captionSize:fontcolor=white@0.88:"
+            'borderw=2:bordercolor=black@0.7:'
+            'x=$captionMargin:y=h-text_h-$captionMargin';
+      }
+
+      try {
+        // `await` matters: returning the Future without waiting would run the
+        // finally below immediately and delete the caption file while ffmpeg is
+        // still starting up, which fails the whole filter with "cannot read
+        // textfile".
+        return await _ffmpeg([
+          '-y',
+          '-ss', seekBefore.toStringAsFixed(3),
+          '-i', sourcePath,
+          '-ss', (startSecs - seekBefore).toStringAsFixed(3),
+          '-t', durationSecs.toStringAsFixed(3),
+          '-vf', vfFilter,
+          '-af', 'volume=0',
+          '-r', '60',
+          ..._h264Args(width: width, height: height, fps: 60),
+          '-c:a', 'aac',
+          '-ar', '44100',
+          '-ac', '2',
+          '-b:a', '128k',
+          '-pix_fmt', 'yuv420p',
+          outputPath,
+        ]);
+      } finally {
+        try {
+          captionFile?.deleteSync();
+        } catch (_) {}
+      }
+    }
 
      return _simulateCopy(sourcePath, outputPath, 'slice $startSecs–${startSecs + durationSecs}s');
    }
@@ -936,6 +1018,7 @@ class VideoProcessingService {
     String? bgMusicPath,
     Template? startupTemplate,
     Template? transitionTemplate,
+    Template? endingTemplate,
     int width = 1280,
     int height = 720,
     void Function(double progress)? onProgress,
@@ -950,8 +1033,16 @@ class VideoProcessingService {
     // then report the completed fraction after each one. Each step is
     // weighted equally; per-timeslot work dominates the count.
     final hasTitleOverlay = hasRealEncoder &&
+        (startupTemplate?.showText ?? true) &&
         startupTemplate?.title != null &&
         startupTemplate!.title!.isNotEmpty;
+    // The ending carries its own configured text; it used to be appended to the
+    // reel untouched, so whatever placeholder was set in the template editor
+    // never showed up in the finished video.
+    final hasEndingTitle = hasRealEncoder &&
+        (endingTemplate?.showText ?? true) &&
+        endingTemplate?.title != null &&
+        endingTemplate!.title!.isNotEmpty;
     final hasEnding = endingVideoPath != null && File(endingVideoPath).existsSync();
     final hasBgm = hasRealEncoder &&
         bgMusicPath != null &&
@@ -959,6 +1050,7 @@ class VideoProcessingService {
     final totalSteps = 1 + // normalize startup
         (hasTitleOverlay ? 1 : 0) +
         (hasEnding ? 1 : 0) +
+        (hasEndingTitle ? 1 : 0) + // ending title overlay
         timeslots.length * 2 + // transition + sub per slot
         1 + // combine body
         (hasBgm ? 1 : 0) +
@@ -996,7 +1088,10 @@ class VideoProcessingService {
     // final video carries the title instead of a blank template.
     var startupClip = normalizedStartup;
     final startupTitle = startupTemplate?.title;
-    if (startupTitle != null && startupTitle.isNotEmpty && hasRealEncoder) {
+    if (startupTitle != null &&
+        startupTitle.isNotEmpty &&
+        (startupTemplate?.showText ?? true) &&
+        hasRealEncoder) {
       startupClip = '${outputDir}startup_titled.mp4';
       // Scale fontSize proportionally to the target resolution (reference:
       // 720p), matching generateTransition — the template editor and preview
@@ -1045,6 +1140,41 @@ class VideoProcessingService {
         await _simulateCopy(endingVideoPath, normalizedEnding, 'normalize ending');
       }
     }
+    // Stamp the ending template's configured text, mirroring the startup title.
+    var endingClip = normalizedEnding;
+    final endingTitle = endingTemplate?.title;
+    if (normalizedEnding != null &&
+        endingTitle != null &&
+        endingTitle.isNotEmpty &&
+        (endingTemplate?.showText ?? true) &&
+        hasRealEncoder) {
+      final titledEnding = '${outputDir}ending_titled.mp4';
+      final scaledEndingFontSize =
+          ((endingTemplate?.fontSize ?? 42) * height / 720.0).round();
+      final res = await overlayText(
+        inputPath: normalizedEnding,
+        outputPath: titledEnding,
+        text: endingTitle,
+        fontPath: endingTemplate?.fontPath,
+        fontSize: scaledEndingFontSize,
+        fontColor: endingTemplate?.fontColor ?? '#F5C42D',
+        // Built-in endings already carry "thanks for watching" burned in around
+        // the frame centre, so the configured text lands as a headline above it
+        // unless the template explicitly asked for top/bottom.
+        yExpr: switch (endingTemplate?.textPosition) {
+          'top' => 'h*0.15',
+          'bottom' => 'h*0.86-text_h',
+          _ => 'h*0.26',
+        },
+        width: width,
+        height: height,
+      );
+      if (res.exitCode == 0) endingClip = titledEnding;
+    }
+    if (hasEndingTitle) {
+      doneSteps++;
+      report();
+    }
     if (hasEnding) {
       doneSteps++;
       report();
@@ -1055,16 +1185,18 @@ class VideoProcessingService {
 
     for (var i = 0; i < timeslots.length; i++) {
       final slot = timeslots[i];
-      final desc = slot.description.isNotEmpty ? slot.description : 'slot_${slot.id}';
+      // One caption feeds both the transition card and the clip watermark, so
+      // the card and the footage can never disagree: "01 xx助攻xx".
+      final caption = slotCaption(i, slot.description);
       final safeName = 'slot_$i';
 
       final transitionPath = '$outputDir${safeName}_transition.mp4';
       final subPath = '$outputDir${safeName}_sub.mp4';
 
       // Generate transition (1s, target resolution, text overlay).
-      await generateTransition(
+      final transitionResult = await generateTransition(
         outputPath: transitionPath,
-        text: desc,
+        text: caption,
         startupVideoPath: startupVideoPath,
         transitionTemplatePath: effectiveTemplatePath,
         fontSize: transitionTemplate?.fontSize ?? 56,
@@ -1076,23 +1208,23 @@ class VideoProcessingService {
         height: height,
       );
 
-      // Slice sub-video. Slots with an explicit elapse use their own window
-      // (inPoint..inPoint+elapse — editable on the Auto Gen track); legacy
-      // point-marks (elapse == 0) fall back to the 10s before the mark.
-      final double startSecs;
-      final double durationSecs;
-      if (slot.elapse > 0) {
-        startSecs = slot.inPointMs / 1000.0;
-        durationSecs = slot.elapse / 1000.0;
-      } else {
-        final markSecs = slot.inPointMs / 1000.0;
-        startSecs = (markSecs - 10.0).clamp(0.0, markSecs);
-        durationSecs = markSecs - startSecs;
+      // A card that failed to render would leave the reel without its label,
+      // and the old code only noticed when the final video came out short.
+      if (transitionResult.exitCode != 0 ||
+          !File(transitionPath).existsSync()) {
+        throw MakePipelineError(
+          '转场卡生成失败 / transition card failed: $caption',
+          transitionResult.stderr,
+        );
       }
+      // Slice sub-video over the slot's own window (see [slotWindow]).
+      final window = slotWindow(slot);
+      final startSecs = window.start;
+      final durationSecs = window.duration;
 
       final fullSourcePath = sourcePaths[slot.filename] ?? slot.filename;
 
-      await sliceSubVideo(
+      final sliceResult = await sliceSubVideo(
         sourcePath: fullSourcePath,
         outputPath: subPath,
         startSecs: startSecs,
@@ -1103,7 +1235,20 @@ class VideoProcessingService {
         centerY: slot.centerY,
         width: width,
         height: height,
+        // The caption is stamped into the footage itself, so a clip survives
+        // being re-cut or shared on its own.
+        caption: caption,
+        captionFontPath: transitionTemplate?.fontPath,
       );
+
+      // A missing slice is a missing highlight: fail loudly instead of shipping
+      // a reel that silently skips it.
+      if (sliceResult.exitCode != 0 || !File(subPath).existsSync()) {
+        throw MakePipelineError(
+          '片段切片失败 / clip slice failed: $caption',
+          sliceResult.stderr,
+        );
+      }
 
       bodyClipPaths.add(transitionPath);
       bodyClipPaths.add(subPath);
@@ -1153,8 +1298,8 @@ class VideoProcessingService {
 
     // Step 5: Combine startup + body + ending → final.mp4.
     final finalClipPaths = <String>[startupClip, bodyWithMusicPath];
-    if (normalizedEnding != null) {
-      finalClipPaths.add(normalizedEnding);
+    if (endingClip != null) {
+      finalClipPaths.add(endingClip);
     }
 
     final finalPath = '${outputDir}final.mp4';
@@ -1171,6 +1316,580 @@ class VideoProcessingService {
     return finalPath;
   }
 
+  // ---------------------------------------------------------------------
+  // Top-5 reels (weekly → monthly → yearly)
+  // ---------------------------------------------------------------------
+
+  /// Traditional broadcast palette, shared by every Top-5 card.
+  static const String top5Ink = '0x0A0A0C';
+  static const String top5Red = '0xE2342B';
+  static const String top5Gold = '0xF5C42D';
+
+  static const String _top5Impact = r'C\:/Windows/Fonts/impact.ttf';
+  static const String _top5Bold = r'C\:/Windows/Fonts/msyhbd.ttc';
+
+  /// Cut the silent, text-free clip a Top-5 slot stores.
+  ///
+  /// Reels carry only the background music, and the rank card owns the number,
+  /// so the stored clip stays reusable at every level (a weekly pick feeds the
+  /// monthly reel unchanged).
+  /// Em-width of a caption string, using the metrics ffmpeg's drawtext gets.
+  ///
+  /// Calibrated on a real 4K render: "01 老庄没收皮球" measures 7.40 em on the
+  /// frame, and this model returns 7.45 em — 0.7% high, which is the safe
+  /// direction when the number sizes a box that has to cover the text.
+  static double captionEmWidth(String text) {
+    var em = 0.0;
+    for (final rune in text.runes) {
+      if (rune == 0x20) {
+        em += 0.35;
+      } else if (rune >= 0x30 && rune <= 0x39) {
+        em += 0.55;
+      } else if (rune >= 0x2E80) {
+        em += 1.0;
+      } else {
+        em += 0.55;
+      }
+    }
+    return em;
+  }
+
+  /// The area the caption watermark covers in a frame of this size.
+  ///
+  /// [sliceSubVideo] draws it with `fontsize = 26 * height / 720` at
+  /// `x = margin`, `y = h - text_h - margin` with `margin = 28 * height / 720`,
+  /// bottom-left. This mirrors that geometry and pads the box by a few pixels
+  /// so the antialiased edge goes with it.
+  static ({int x, int y, int width, int height}) captionBox({
+    required String text,
+    required int frameWidth,
+    required int frameHeight,
+  }) {
+    final font = (26 * frameHeight / 720.0).round();
+    final margin = (28 * frameHeight / 720.0).round();
+    // One em covers CJK glyphs plus the 2px border; the extra covers Latin
+    // descenders that would otherwise poke below the box.
+    var boxHeight = (font * 1.30).round();
+    var boxWidth =
+        (captionEmWidth(text) * font).round() + (font * 0.35).round();
+    var x = margin - (font * 0.12).round();
+    var y = frameHeight - margin - boxHeight;
+    if (x < 0) {
+      boxWidth += x;
+      x = 0;
+    }
+    if (y < 0) {
+      boxHeight += y;
+      y = 0;
+    }
+    if (x + boxWidth > frameWidth) boxWidth = frameWidth - x;
+    if (y + boxHeight > frameHeight) boxHeight = frameHeight - y;
+    return (x: x, y: y, width: boxWidth, height: boxHeight);
+  }
+
+  /// Re-encodes any audio the user picks into the mono WAV the voice engine
+  /// reads.
+  ///
+  /// The engine goes through libsndfile, which understands wav/flac/ogg but
+  /// not m4a/aac, so a phone recording has to be converted before it can stand
+  /// in as the reference voice.
+  Future<ProcessResult> toVoiceWav({
+    required String inputPath,
+    required String outputPath,
+    int sampleRate = 44100,
+  }) {
+    return _ffmpeg([
+      '-y',
+      '-i', inputPath,
+      '-vn',
+      '-ac', '1',
+      '-ar', '$sampleRate',
+      '-c:a', 'pcm_s16le',
+      outputPath,
+    ]);
+  }
+
+  /// Re-renders a slice Make already produced so the Top-5 reel can use it.
+  ///
+  /// Make stamps `01 xx助攻xx` into the bottom-left of every `slot_<i>_sub.mp4`
+  /// (`caption:` in [sliceSubVideo]). The reel draws its own rank card and
+  /// narration, so the old caption has to go: [captionBox] says exactly where
+  /// it is and a filled box paints over it. Reusing the slice also means the
+  /// source footage does not have to be decoded again — and it still works
+  /// when the original recording has since moved.
+  Future<ProcessResult> maskCaptionWatermark({
+    required String sourcePath,
+    required String outputPath,
+    required String caption,
+    int width = 1280,
+    int height = 720,
+    String fill = 'black',
+    double widthSlack = 0.15,
+  }) {
+    final box = captionBox(
+      text: caption,
+      frameWidth: width,
+      frameHeight: height,
+    );
+    // Slack for a caption that was edited after Make rendered the slice: the
+    // old text can be longer than the current one, and a box that is too small
+    // leaves the tail of it on screen.
+    var boxWidth =
+        (box.width * (1 + widthSlack)).round().clamp(1, width - box.x);
+    final filter = [
+      'scale=$width:$height:force_original_aspect_ratio=decrease',
+      'pad=$width:$height:(ow-iw)/2:(oh-ih)/2',
+      'drawbox=x=${box.x}:y=${box.y}:w=$boxWidth:h=${box.height}'
+          ':color=$fill:t=fill',
+      'fps=30',
+    ].join(',');
+    return _ffmpeg([
+      '-y',
+      '-i', sourcePath,
+      '-vf', filter,
+      // The slice is silent already; forcing it keeps the reel's concat happy
+      // even if a hand-made file carried audio.
+      '-af', 'volume=0',
+      ..._h264Args(width: width, height: height, fps: 30),
+      '-c:a', 'aac',
+      '-ar', '44100',
+      '-ac', '2',
+      '-b:a', '128k',
+      '-pix_fmt', 'yuv420p',
+      outputPath,
+    ]);
+  }
+
+  Future<ProcessResult> materializeTop5Clip({
+    required String sourcePath,
+    required String outputPath,
+    required double startSecs,
+    required double durationSecs,
+    bool remote = false,
+    double? centerX,
+    double? centerY,
+    int width = 1280,
+    int height = 720,
+  }) {
+    return sliceSubVideo(
+      sourcePath: sourcePath,
+      outputPath: outputPath,
+      startSecs: startSecs,
+      durationSecs: durationSecs,
+      startupVideoPath: sourcePath,
+      // Remote slots carry the same zoom-in the highlight reel gives them, so a
+      // wide camera's goal looks identical in both videos.
+      remote: remote,
+      centerX: centerX,
+      centerY: centerY,
+      width: width,
+      height: height,
+    );
+  }
+
+  /// Render one Top-5 reel: intro card → (rotating rank card + clip) ×5 → end
+  /// card, with [bgMusicPath] as the only audio track.
+  ///
+  /// [clipPaths] and [titles] are ordered rank 1..N (rank 1 = best); the reel
+  /// plays 5 → 1 like a broadcast countdown. Every segment is normalised to the
+  /// target size and 30 fps before the concat demuxer sees it: slices come out
+  /// at 60 fps, and mixing frame rates in a concat list drops frames.
+  Future<String> makeTop5({
+    required List<String> clipPaths,
+    required List<String> titles,
+    required String introTitle,
+    required String badge,
+    required String outputPath,
+    required String bgMusicPath,
+    // One entry per clip: the narration file (empty when the clip stays
+    // silent) and how long it runs, in seconds.
+    List<String> narrationPaths = const [],
+    List<double> narrationDurations = const [],
+    String endTitle = '五佳进球',
+    String endSubtitle = '',
+    int width = 1280,
+    int height = 720,
+    void Function(double progress)? onProgress,
+  }) async {
+    if (!hasRealEncoder) {
+      throw const MakePipelineError(
+        '5佳球需要 ffmpeg / Top-5 needs ffmpeg',
+        'ffmpeg was not found, so no reel can be rendered',
+      );
+    }
+    if (clipPaths.isEmpty || clipPaths.length != titles.length) {
+      throw MakePipelineError(
+        '片段数量不匹配 / clip list mismatch',
+        'got ${clipPaths.length} clips and ${titles.length} titles',
+      );
+    }
+    for (final clip in clipPaths) {
+      if (!File(clip).existsSync()) {
+        throw MakePipelineError('片段文件丢失 / clip missing', clip);
+      }
+    }
+    if (bgMusicPath.isEmpty || !File(bgMusicPath).existsSync()) {
+      throw MakePipelineError(
+        '缺少背景音乐模板 / no background music template',
+        bgMusicPath,
+      );
+    }
+
+    final outFile = File(outputPath);
+    final sep = Platform.pathSeparator;
+    // The render scratch lives under temp: intro, cards, clips, master and the
+    // concat list are all regenerable, and a reel folder should hold reels.
+    final workDir = '${AppPaths.tempDir}${sep}top5_work$sep';
+    await Directory(workDir).create(recursive: true);
+
+    final scale = height / 720.0;
+    int px(double at720) => (at720 * scale).round();
+    void report(double progress) => onProgress?.call(progress.clamp(0.0, 1.0));
+
+    final totalSteps = 3 + clipPaths.length * 2;
+    var doneSteps = 0;
+    void step() {
+      doneSteps++;
+      report(doneSteps / totalSteps);
+    }
+
+    final ring = await _top5RingAsset(workDir);
+    final cjkFont = _resolveOverlayFont(null, '五');
+    final numberFont =
+        File('C:/Windows/Fonts/impact.ttf').existsSync() ? _top5Impact : cjkFont;
+    final boldFont =
+        File('C:/Windows/Fonts/msyhbd.ttc').existsSync() ? _top5Bold : cjkFont;
+
+    /// drawtext whose copy comes from a file: user text carries commas, colons
+    /// and CJK, and `textfile=` is the only escaping-safe route for it.
+    Future<String> draw(
+      String text,
+      String fileName, {
+      required String? font,
+      required String fontSize,
+      required String color,
+      required String x,
+      required String y,
+      String extra = '',
+    }) async {
+      final file = File('$workDir$fileName');
+      await file.writeAsString(text);
+      final escaped = file.path.replaceAll('\\', '/').replaceAll(':', '\\:');
+      return "drawtext=${font != null ? "fontfile='$font':" : ''}"
+          "textfile='$escaped':fontsize=$fontSize:fontcolor=$color:"
+          'x=$x:y=$y$extra';
+    }
+
+    // ---- intro card ------------------------------------------------------
+    final introPath = '${workDir}00_intro.mp4';
+    final introFilter = [
+      'drawbox=x=0:y=0:w=${px(18)}:h=ih:color=$top5Red:t=fill',
+      'drawbox=x=${px(72)}:y=${px(92)}:w=${px(560)}:h=${px(3)}:color=white@0.85:t=fill',
+      await draw('TOP 5', 'intro_top.txt',
+          font: numberFont,
+          fontSize: '${px(210)}',
+          color: 'white',
+          x: '${px(64)}',
+          y: '${px(120)}'),
+      await draw(introTitle, 'intro_title.txt',
+          font: boldFont,
+          fontSize: '${px(48)}',
+          color: 'white',
+          x: '${px(72)}',
+          y: '${px(352)}'),
+      'drawbox=x=${px(72)}:y=${px(506)}:w=${px(560)}:h=${px(2)}:color=white@0.32:t=fill',
+    ].join(',');
+    await _ffmpeg([
+      '-y',
+      '-f', 'lavfi',
+      '-i', 'color=c=$top5Ink:s=${width}x$height:d=3:r=30',
+      '-f', 'lavfi',
+      '-t', '3',
+      '-i', 'anullsrc=r=44100:cl=stereo',
+      '-vf', introFilter,
+      ..._h264Args(width: width, height: height),
+      '-c:a', 'aac',
+      '-ar', '44100',
+      '-ac', '2',
+      '-b:a', '128k',
+      '-pix_fmt', 'yuv420p',
+      '-shortest',
+      introPath,
+    ]);
+    step();
+
+    // ---- rank cards and clips --------------------------------------------
+    final segments = <String>[introPath];
+    for (var i = clipPaths.length - 1; i >= 0; i--) {
+      final rank = i + 1;
+      final accent = rank == 1 ? top5Gold : top5Red;
+      final title = titles[i].trim();
+
+      /// 0.4 s tween from the full-width bar to the corner pill.
+      String tween(int from, int to) =>
+          'if(lt(t,1),$from,if(lt(t,1.4),$from-($from-$to)*(t-1)/0.4,$to))';
+
+      final cardPath = '${workDir}card_$rank.mp4';
+      final ringSize = px(640);
+      final cardChain = '[1:v]scale=$ringSize:$ringSize,'
+          "rotate=a='-2*PI*t/1.2':c=$top5Ink:ow=iw:oh=iw[ring];"
+          '[0:v][ring]overlay=${(width - ringSize) ~/ 2}:'
+          '${(height - ringSize) ~/ 2},'
+          '${await draw('$rank', 'card_${i}_num.txt', font: numberFont, fontSize: '${px(240)}', color: accent, x: '(w-text_w)/2', y: '(h-text_h)/2', extra: ':borderw=${px(8)}:bordercolor=black@0.9')},'
+          '${await draw('NO.$rank', 'card_${i}_label.txt', font: boldFont, fontSize: '${px(38)}', color: 'white@0.85', x: '(w-text_w)/2', y: '${px(616)}')}'
+          '[card]';
+      await _ffmpeg([
+        '-y',
+        '-f', 'lavfi',
+        '-i', 'color=c=$top5Ink:s=${width}x$height:d=1.2:r=30',
+        '-loop', '1',
+        '-framerate', '30',
+        '-i', ring,
+        '-f', 'lavfi',
+        '-t', '1.2',
+        '-i', 'anullsrc=r=44100:cl=stereo',
+        '-filter_complex', cardChain,
+        '-map', '[card]',
+        '-map', '2:a',
+        ..._h264Args(width: width, height: height),
+        '-c:a', 'aac',
+        '-ar', '44100',
+        '-ac', '2',
+        '-b:a', '128k',
+        '-pix_fmt', 'yuv420p',
+        '-shortest',
+        cardPath,
+      ]);
+      step();
+
+      final barY = px(474);
+      final clipPath = '${workDir}clip_$rank.mp4';
+      final clipFilter = [
+        'scale=$width:$height:force_original_aspect_ratio=decrease',
+        'pad=$width:$height:(ow-iw)/2:(oh-ih)/2',
+        'fps=30',
+        "drawbox=x=0:y=$barY:w=iw:h=${px(112)}:color=black@0.62:t=fill:enable='lt(t,1.4)'",
+        "drawbox=x=0:y=${barY - px(2)}:w=iw:h=${px(3)}:color=$top5Red:t=fill:enable='lt(t,1.4)'",
+        "drawbox=x=${px(24)}:y=${px(54)}:w=${px(486)}:h=${px(54)}:color=black@0.58:t=fill:enable='gte(t,1.4)'",
+        // Rank number: big in the bar, then the corner pill's small size.
+        await draw('NO.$rank', 'clip_${i}_no.txt',
+            font: boldFont,
+            fontSize: "'${tween(px(42), px(24))}'",
+            color: top5Red,
+            x: "'${tween(px(30), px(36))}'",
+            y: "'${tween(px(500), px(70))}'"),
+        // Title: readable for a second, then out of the way of the action.
+        await draw(title.isEmpty ? introTitle : title, 'clip_${i}_title.txt',
+            font: cjkFont,
+            fontSize: "'${tween(px(32), px(20))}'",
+            color: 'white',
+            x: "'${tween(px(170), px(116))}'",
+            y: "'${tween(px(505), px(72))}'",
+            extra: ':borderw=2:bordercolor=black@0.6'),
+        await draw(badge, 'clip_${i}_badge.txt',
+            font: cjkFont,
+            fontSize: '${px(22)}',
+            color: 'white@0.7',
+            x: 'w-text_w-${px(26)}',
+            y: '${px(26)}'),
+      ].join(',');
+      final narrationPath =
+          i < narrationPaths.length ? narrationPaths[i] : '';
+      final narrationSecs =
+          i < narrationDurations.length ? narrationDurations[i] : 0.0;
+      final hasNarration =
+          narrationPath.isNotEmpty && File(narrationPath).existsSync();
+      if (hasNarration) {
+        // The voice can outlast the clip: freeze the last frame instead of
+        // cutting the narration off mid-sentence.
+        final clipMs = await probeDurationMs(clipPaths[i]) ?? 0;
+        final neededMs = (narrationSecs * 1000).round() + 400;
+        final extra = clipMs > 0 ? (neededMs - clipMs) / 1000.0 : 0.0;
+        final base = [
+          'scale=$width:$height:force_original_aspect_ratio=decrease',
+          'pad=$width:$height:(ow-iw)/2:(oh-ih)/2',
+          'fps=30',
+        ];
+        if (extra > 0) {
+          base.add(
+              'tpad=stop_mode=clone:stop_duration=${extra.toStringAsFixed(3)}');
+        }
+        await _ffmpeg([
+          '-y',
+          '-i', clipPaths[i],
+          '-i', narrationPath,
+          '-filter_complex',
+          '[0:v]${base.join(',')}[v];[1:a]adelay=300|300,volume=1.0[a]',
+          '-map', '[v]',
+          '-map', '[a]',
+          ..._h264Args(width: width, height: height),
+          '-c:a', 'aac',
+          '-ar', '44100',
+          '-ac', '2',
+          '-b:a', '128k',
+          '-pix_fmt', 'yuv420p',
+          '-shortest',
+          clipPath,
+        ]);
+      } else {
+        await _ffmpeg([
+          '-y',
+          '-i', clipPaths[i],
+          '-vf', clipFilter,
+          ..._h264Args(width: width, height: height),
+          '-c:a', 'aac',
+          '-ar', '44100',
+          '-ac', '2',
+          '-b:a', '128k',
+          '-pix_fmt', 'yuv420p',
+          clipPath,
+        ]);
+      }
+      step();
+
+      segments.add(cardPath);
+      segments.add(clipPath);
+    }
+
+    // ---- end card --------------------------------------------------------
+    final endPath = '${workDir}99_end.mp4';
+    final endFilter = [
+      'drawbox=x=0:y=0:w=${px(18)}:h=ih:color=$top5Red:t=fill',
+      await draw(endTitle, 'end_title.txt',
+          font: boldFont,
+          fontSize: '${px(76)}',
+          color: 'white',
+          x: '(w-text_w)/2',
+          y: '${px(278)}'),
+      if (endSubtitle.trim().isNotEmpty)
+        await draw(endSubtitle, 'end_subtitle.txt',
+            font: cjkFont,
+            fontSize: '${px(40)}',
+            color: top5Red,
+            x: '(w-text_w)/2',
+            y: '${px(392)}'),
+    ].join(',');
+    await _ffmpeg([
+      '-y',
+      '-f', 'lavfi',
+      '-i', 'color=c=$top5Ink:s=${width}x$height:d=2.5:r=30',
+      '-f', 'lavfi',
+      '-t', '2.5',
+      '-i', 'anullsrc=r=44100:cl=stereo',
+      '-vf', endFilter,
+      ..._h264Args(width: width, height: height),
+      '-c:a', 'aac',
+      '-ar', '44100',
+      '-ac', '2',
+      '-b:a', '128k',
+      '-pix_fmt', 'yuv420p',
+      '-shortest',
+      endPath,
+    ]);
+    step();
+    segments.add(endPath);
+
+    // ---- concat, then the background music becomes the only audio ---------
+    final listFile = File('${workDir}list.txt');
+    await listFile.writeAsString([
+      for (final segment in segments)
+        "file '${segment.replaceAll('\\', '/')}'",
+    ].join('\n'));
+    final masterPath = '${workDir}master.mp4';
+    final concat = await _ffmpeg([
+      '-y',
+      '-f', 'concat',
+      '-safe', '0',
+      '-i', listFile.path,
+      '-vf', 'fps=30',
+      ..._h264Args(width: width, height: height),
+      '-c:a', 'aac',
+      '-ar', '44100',
+      '-ac', '2',
+      '-b:a', '128k',
+      '-pix_fmt', 'yuv420p',
+      masterPath,
+    ]);
+    if (concat.exitCode != 0 || !File(masterPath).existsSync()) {
+      throw MakePipelineError('5佳球拼接失败 / concat failed', concat.stderr);
+    }
+    step();
+
+    // The master carries the narration; the music sits under it and ducks
+    // while somebody is talking.
+    final hasNarration = narrationPaths.any((path) => path.isNotEmpty);
+    final musicFilter = hasNarration
+        ? '[1:a]volume=0.30[bg];'
+            '[bg][0:a]sidechaincompress=threshold=0.05:ratio=8:attack=15:release=300[ducked];'
+            '[ducked][0:a]amix=inputs=2:normalize=0[a]'
+        : '[1:a]volume=0.85[a]';
+    var reel = await _ffmpeg([
+      '-y',
+      '-i', masterPath,
+      '-stream_loop', '-1',
+      '-i', bgMusicPath,
+      '-filter_complex', musicFilter,
+      '-map', '0:v',
+      '-map', '[a]',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-ar', '44100',
+      '-ac', '2',
+      '-b:a', '192k',
+      '-shortest',
+      outputPath,
+    ]);
+    if (reel.exitCode != 0 && hasNarration) {
+      // sidechaincompress is not in every build: fall back to a plain mix.
+      reel = await _ffmpeg([
+        '-y',
+        '-i', masterPath,
+        '-stream_loop', '-1',
+        '-i', bgMusicPath,
+        '-filter_complex',
+        '[1:a]volume=0.30[bg];[bg][0:a]amix=inputs=2:normalize=0[a]',
+        '-map', '0:v',
+        '-map', '[a]',
+        '-c:v', 'copy',
+        '-c:a', 'aac',
+        '-ar', '44100',
+        '-ac', '2',
+        '-b:a', '192k',
+        '-shortest',
+        outputPath,
+      ]);
+    }
+    if (reel.exitCode != 0 || !outFile.existsSync()) {
+      throw MakePipelineError('5佳球混音失败 / music pass failed', reel.stderr);
+    }
+    report(1);
+    return outputPath;
+  }
+
+  /// The rotating ring behind a rank number: a 300° arc on the card colour, so
+  /// the gap makes the rotation visible. Rendered once per reel from a single
+  /// geq frame — drawing the arc per frame costs minutes.
+  Future<String> _top5RingAsset(String workDir) async {
+    final path = '${workDir}ring.png';
+    if (File(path).existsSync()) return path;
+    const mask = r'lt(abs(sqrt(pow(X-320\,2)+pow(Y-320\,2))-200)\,4)'
+        r'*lt(mod(atan2(Y-320\,X-320)*180/PI+450\,360)\,300)';
+    final res = await _ffmpeg([
+      '-y',
+      '-f', 'lavfi',
+      '-i', 'color=c=$top5Ink:s=640x640',
+      '-frames:v', '1',
+      '-update', '1',
+      '-vf', "geq=r='if($mask\\,226\\,10)':g='if($mask\\,52\\,10)':"
+          "b='if($mask\\,43\\,12)'",
+      '-pix_fmt', 'rgb24',
+      path,
+    ]);
+    if (res.exitCode != 0 || !File(path).existsSync()) {
+      throw MakePipelineError('圆环素材生成失败 / ring asset failed', res.stderr);
+    }
+    return path;
+  }
   /// Generate a football-themed startup (intro) template video.
   ///
   /// Produces a [durationSecs]-second H.264 MP4 with a dark-green gradient

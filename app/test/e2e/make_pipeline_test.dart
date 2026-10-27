@@ -111,8 +111,8 @@ void main() {
     // At the 720p reference resolution the configured fontSize (48) is
     // applied as-is (no scaling).
     final log = File('$projectRoot\\ffmpeg_command').readAsStringSync();
-    final block =
-        _loggedCommandsFor(log, 'make_pipeline_test.dart :: makeAll title $runId');
+    final block = _loggedCommandsFor(
+        log, 'make_pipeline_test.dart :: makeAll title $runId');
     expect(block, contains('fontsize=48'), reason: '720p startup overlay');
     print('OUTPUT: $finalPath');
   }, timeout: const Timeout(Duration(minutes: 4)));
@@ -171,6 +171,103 @@ void main() {
         reason: 'unscaled font size leaked into the 4K startup overlay');
     print('OUTPUT: $finalPath');
   }, timeout: const Timeout(Duration(minutes: 8)));
+
+  test('makeAll stamps the slot caption onto the clip bottom-left', () async {
+    final ffmpegPath = await VideoProcessingService.findFfmpeg();
+    if (ffmpegPath == null) return; // simulation mode has no pixels to measure
+    VideoProcessingService.commandLogContext =
+        'make_pipeline_test.dart :: caption watermark $runId';
+
+    // Flat black source: then the only near-white pixels in the bottom-left
+    // corner are the watermark's glyphs, so the count measures the caption
+    // instead of the footage.
+    final blank = '${tempDir}blank_source.mp4';
+    final mk = await Process.run(ffmpegPath, [
+      '-y',
+      '-v',
+      'error',
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=black:s=1280x720:d=20:r=30',
+      '-f',
+      'lavfi',
+      '-i',
+      'anullsrc=r=44100:cl=stereo',
+      '-map',
+      '0:v',
+      '-map',
+      '1:a',
+      '-t',
+      '20',
+      '-c:v',
+      'libopenh264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '64k',
+      '-shortest',
+      blank,
+    ]);
+    expect(mk.exitCode, 0,
+        reason: 'failed to render the blank source:\n${mk.stderr}');
+
+    final outputDir = '${tempDir}caption_run\\';
+    Directory(outputDir).createSync(recursive: true);
+    final finalPath = await service.makeAll(
+      timeslots: [
+        Timeslot(
+          id: 'a',
+          projectId: 'p',
+          videoSourceId: 'v',
+          inPointMs: 2000,
+          outPointMs: 12000,
+          createdAt: DateTime.now(),
+          filename: 'blank.mp4',
+          description: 'xx助攻xx',
+        ),
+        Timeslot(
+          id: 'b',
+          projectId: 'p',
+          videoSourceId: 'v',
+          inPointMs: 2000,
+          outPointMs: 12000,
+          createdAt: DateTime.now(),
+          filename: 'blank.mp4',
+          description: 'xx没收皮球',
+        ),
+      ],
+      startupVideoPath: startupMp4,
+      outputDir: outputDir,
+      sourcePaths: {'blank.mp4': blank},
+      transitionTemplatePath: transitionMp4,
+    );
+    expect(File(finalPath).existsSync(), isTrue, reason: 'final.mp4 missing');
+
+    // 1) Wiring: the watermark drawtext is in the slice commands, with the
+    //    margin and font size scaled for 720p.
+    final log = File('$projectRoot\\ffmpeg_command').readAsStringSync();
+    final block = _loggedCommandsFor(
+        log, 'make_pipeline_test.dart :: caption watermark $runId');
+    expect(block, contains('y=h-text_h-28'),
+        reason: 'watermark must hug the bottom edge');
+    expect(block, contains('fontsize=26'),
+        reason: 'watermark must use the 720p reference size');
+
+    // 2) Pixels: the caption really is burned into the bottom-left corner and
+    //    not into the top-left one.
+    final sub = '${outputDir}slot_0_sub.mp4';
+    expect(File(sub).existsSync(), isTrue, reason: 'slot_0_sub.mp4 missing');
+    final bottomLeft = await _countWhiteish(ffmpegPath, sub, 16, 640, 480, 70);
+    final topLeft = await _countWhiteish(ffmpegPath, sub, 16, 16, 480, 70);
+    print('caption pixels: bottom-left=$bottomLeft top-left=$topLeft');
+    expect(bottomLeft, greaterThan(300), reason: 'caption glyphs missing');
+    expect(bottomLeft, greaterThan(topLeft + 200),
+        reason: 'caption must sit in the bottom-left corner');
+    print('OUTPUT: $finalPath');
+  }, timeout: const Timeout(Duration(minutes: 6)));
 }
 
 /// All logged ffmpeg command lines written under `context` (the log is
@@ -179,9 +276,51 @@ void main() {
 /// split into `"[ctx]\ncmd"` entries and join the matching ones.
 String _loggedCommandsFor(String log, String context) {
   final parts = log.split(RegExp(r'^\[', multiLine: true));
-  return parts
-      .where((p) => p.startsWith('$context]\n'))
-      .join();
+  return parts.where((p) => p.startsWith('$context]\n')).join();
+}
+
+/// Extract one frame from [videoPath], crop the given box, and count pixels
+/// whose min RGB channel exceeds [threshold] (near-white). The caption renders
+/// white on black, so a corner carrying it shows a clear surplus over an empty
+/// corner of the same size.
+Future<int> _countWhiteish(
+    String ffmpeg, String videoPath, int x, int y, int w, int h,
+    {int threshold = 120}) async {
+  final rawPath = '$videoPath.$x.$y.raw';
+  try {
+    final r = await Process.run(ffmpeg, [
+      '-y',
+      '-v',
+      'error',
+      '-ss',
+      '1.5',
+      '-i',
+      videoPath,
+      '-frames:v',
+      '1',
+      '-vf',
+      'crop=$w:$h:$x:$y',
+      '-f',
+      'rawvideo',
+      '-pix_fmt',
+      'rgb24',
+      rawPath,
+    ]);
+    if (r.exitCode != 0) throw StateError('crop failed:\n${r.stderr}');
+    final bytes = File(rawPath).readAsBytesSync();
+    var count = 0;
+    for (var i = 0; i + 2 < bytes.length; i += 3) {
+      final mn = bytes[i] < bytes[i + 1]
+          ? (bytes[i] < bytes[i + 2] ? bytes[i] : bytes[i + 2])
+          : (bytes[i + 1] < bytes[i + 2] ? bytes[i + 1] : bytes[i + 2]);
+      if (mn > threshold) count++;
+    }
+    return count;
+  } finally {
+    try {
+      File(rawPath).deleteSync();
+    } catch (_) {}
+  }
 }
 
 String _resolveProjectRoot() {

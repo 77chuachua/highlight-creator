@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 五佳球 步骤2 预览与解说</title>
+<link rel="stylesheet" href="assets/proto.css">
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a><span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html" class="on">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 1140×720</span>
+</nav>
+
+<div class="stage stage--top">
+  <div>
+    <div class="note">
+      <b>步骤 2 · 预览与解说</b> —— <code>_buildEditor()</code>。
+      顶部是解说语音行（系统语音 + 语音包，文案格式 <code>语音包 · 我的声音 · 7.0 秒</code>），
+      下面是视频预览（flex 3）与解说卡片（flex 2）。卡片里有片段标题、预览按钮、
+      解说输入框、试听按钮与当前解说状态。
+    </div>
+
+    <div class="dlg">
+      <div class="dlg__head">
+        <div class="badge">🏆</div>
+        <div class="title">5佳球 / 10佳球</div>
+        <div class="gap-lg"></div>
+        <div class="steps">
+          <div class="step"><span class="step__num">1</span>选择</div>
+          <span class="chev">›</span>
+          <div class="step on"><span class="step__num">2</span>预览与解说</div>
+        </div>
+        <div class="grow"></div>
+        <button class="iconbtn" title="关闭">✕</button>
+      </div>
+      <div class="divider"></div>
+
+      <div class="dlg__body">
+        <!-- voice row -->
+        <div class="voice-row">
+          <span style="font-size:14px">🎙</span>
+          <span class="label">解说语音</span>
+          <div style="width:12px"></div>
+          <div class="select">
+            <span>语音包 · 我的声音 · 7.0 秒</span>
+            <span class="caret">▼</span>
+          </div>
+          <button class="btn">🎤 创建语音包</button>
+          <button class="btn">⬇ 导入</button>
+          <div style="flex:1"></div>
+          <button class="btn btn--ghost">ⓘ 语音包指南</button>
+        </div>
+
+        <!-- error strip (optional; shown to document the state) -->
+        <div class="error-strip">
+          <span class="ico">⚠</span>
+          <span class="grow">克隆失败: do not support extract speech token for audio longer than 30s</span>
+          <span class="x">✕</span>
+        </div>
+
+        <div class="cols" style="margin-top:10px">
+          <!-- preview -->
+          <div class="preview">
+            <div class="cap">01 老庄没收皮球 · 1280×720</div>
+            <div>
+              <span class="ico">▶</span>
+              点右侧 ▶ 预览片段
+            </div>
+          </div>
+
+          <!-- comment cards -->
+          <div class="comments">
+            <div class="card">
+              <div class="card__head">
+                <div class="rank rank--1">1</div>
+                <div class="row__name" style="font-weight:600">01 老庄没收皮球</div>
+                <span class="play">▶</span>
+              </div>
+              <textarea class="input" rows="1">老庄这脚球太漂亮了</textarea>
+              <div class="card__foot">
+                <span style="font-size:14px">🔊</span>
+                <span class="state">解说:我的声音(本地克隆)</span>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="rank">2</div>
+                <div class="row__name" style="font-weight:600">02 小王远射破门</div>
+                <span class="play">▶</span>
+              </div>
+              <textarea class="input" rows="1">小王这脚远射角度太刁了</textarea>
+              <div class="card__foot">
+                <span style="font-size:14px">🔊</span>
+                <span class="state">解说:我的声音(本地克隆)</span>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card__head">
+                <div class="rank">3</div>
+                <div class="row__name" style="font-weight:600">03 老庄头球攻门</div>
+                <span class="play">▶</span>
+              </div>
+              <textarea class="input" rows="1">又是老庄,头球砸进死角</textarea>
+              <div class="card__foot">
+                <span style="font-size:14px">🔊</span>
+                <span class="state">解说:我的声音(本地克隆)</span>
+              </div>
+            </div>
+
+            <div class="card" style="opacity:.9">
+              <div class="card__head">
+                <div class="rank">4</div>
+                <div class="row__name" style="font-weight:600">04 门将飞身扑救</div>
+                <span class="play">▶</span>
+              </div>
+              <textarea class="input" rows="1" placeholder="解说 · 成片里念出来"></textarea>
+              <div class="card__foot">
+                <span style="font-size:14px">🔊</span>
+                <span class="state">未填解说词</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="dlg__foot">
+        <span class="faint">解说保存在条目里,渲染时不出现在画面上</span>
+        <div class="grow"></div>
+        <button class="btn btn--ghost">返回</button>
+        <button class="btn btn--primary">🎬 生成 5佳进球</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

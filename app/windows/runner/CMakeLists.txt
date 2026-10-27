@@ -9,6 +9,8 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME} WIN32
   "flutter_window.cpp"
   "main.cpp"
+  "speech_synth.cc"
+  "store_update.cc"
   "utils.cpp"
   "win32_window.cpp"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
@@ -35,6 +37,20 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
+
+# C++/WinRT, for the Microsoft Store update check in store_update.cc. The headers
+# ship with the Windows SDK but are not on CMake's default include path, so point
+# at the SDK this build already targets. WindowsApp.lib is the umbrella import
+# library every WinRT call needs.
+find_path(CPPWINRT_INCLUDE_DIR "winrt/Windows.Services.Store.h"
+  HINTS
+    "$ENV{WindowsSdkDir}Include/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/cppwinrt"
+    "C:/Program Files (x86)/Windows Kits/10/Include/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/cppwinrt"
+)
+if(CPPWINRT_INCLUDE_DIR)
+  target_include_directories(${BINARY_NAME} PRIVATE "${CPPWINRT_INCLUDE_DIR}")
+endif()
+target_link_libraries(${BINARY_NAME} PRIVATE "WindowsApp.lib")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

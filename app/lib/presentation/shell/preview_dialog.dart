@@ -169,7 +169,26 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
         initialCategory: _typeToCategory(type),
       ),
     );
-    // Reload templates after editor closes to pick up changes.
+    // Reload after the editor closes so the preview shows the saved changes.
+    _reloadPreviews();
+  }
+
+  /// Change which template a row renders, from inside the Make dialog.
+  ///
+  /// Picking a startup also adopts that design set's transition and ending; a
+  /// later explicit pick of either is kept as-is.
+  Future<void> _selectTemplate(TemplateType type, String id) async {
+    final notifier = ref.read(selectedTemplatesProvider.notifier);
+    if (type == TemplateType.startup) {
+      await notifier.selectStartupWithSet(id);
+    } else {
+      notifier.select(type, id);
+    }
+    _reloadPreviews();
+  }
+
+  /// Drop the cached players and re-resolve every row from the repository.
+  void _reloadPreviews() {
     if (!mounted) return;
     for (final p in _players) {
       unawaited(p?.dispose());
@@ -310,24 +329,31 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
       final startup = await _resolveTemplate(TemplateType.startup);
       final transition = await _resolveTemplate(TemplateType.transition);
       final ending = await _resolveTemplate(TemplateType.ending);
+      final repo = ref.read(templateRepositoryProvider);
+      final startupOptions = await repo.listByType(TemplateType.startup);
+      final transitionOptions = await repo.listByType(TemplateType.transition);
+      final endingOptions = await repo.listByType(TemplateType.ending);
       final list = [
         _TemplateInfo(
           type: TemplateType.startup,
           template: startup,
           path: _resolvePath(startup),
           title: startup?.title,
+          options: startupOptions,
         ),
         _TemplateInfo(
           type: TemplateType.transition,
           template: transition,
           path: _resolvePath(transition),
           title: transition?.title,
+          options: transitionOptions,
         ),
         _TemplateInfo(
           type: TemplateType.ending,
           template: ending,
           path: _resolvePath(ending),
           title: null,
+          options: endingOptions,
         ),
       ];
       // Init players for each template that has a valid path.
@@ -420,11 +446,55 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              info.template?.name ?? '—',
-              style: const TextStyle(fontSize: 11, color: Colors.white70),
-              overflow: TextOverflow.ellipsis,
-            ),
+            if (info.options.length > 1)
+              PopupMenuButton<String>(
+                tooltip: _s('选择模板', 'Pick template'),
+                onSelected: (id) => _selectTemplate(info.type, id),
+                itemBuilder: (_) => [
+                  for (final option in info.options)
+                    PopupMenuItem(
+                      value: option.id,
+                      child: Row(
+                        children: [
+                          Icon(
+                            option.id == info.template?.id
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(option.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        info.template?.name ?? '—',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.white70),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.arrow_drop_down,
+                        size: 14, color: Colors.white54),
+                  ],
+                ),
+              )
+            else
+              Text(
+                info.template?.name ?? '—',
+                style: const TextStyle(fontSize: 11, color: Colors.white70),
+                overflow: TextOverflow.ellipsis,
+              ),
             if (info.title != null && info.title!.isNotEmpty)
               Text(
                 info.title!,
@@ -521,6 +591,9 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
               children: [
                 for (var i = 0; i < _presets.length; i++)
                   ChoiceChip(
+                    // showCheckmark widens the selected chip and shuffles the row;
+                    // the selected fill is signal enough.
+                    showCheckmark: false,
                     key: Key('resolution_${_presets[i].label}'),
                     label: Text(_presets[i].label,
                         style: const TextStyle(fontSize: 12)),
@@ -551,10 +624,15 @@ class _TemplateInfo {
   final String? path;
   final String? title;
 
+  /// Every template of this type, so the Make dialog can switch between them
+  /// without leaving the preview.
+  final List<Template> options;
+
   const _TemplateInfo({
     required this.type,
     this.template,
     this.path,
     this.title,
+    this.options = const [],
   });
 }

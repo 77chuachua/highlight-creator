@@ -1,5 +1,5 @@
 # analysis_options.yaml — Dart / Flutter linting rules
-# Enforced by dart_code_metrics and flutter_lints
+# Enforced by flutter_lints + the analyzer (dart_code_metrics was discontinued)
 
 include: package:flutter_lints/flutter.yaml
 
@@ -49,18 +49,3 @@ analyzer:
     missing_return: error
     dead_code: warning
     invalid_annotation_target: ignore
-
-dart_code_metrics:
-  metrics:
-    cyclomatic-complexity: 20
-    maximum-nesting-level: 5
-    number-of-parameters: 6
-    source-lines-of-code: 200
-  rules:
-    - avoid-unnecessary-type-assertions
-    - avoid-unnecessary-type-casts
-    - prefer-trailing-comma
-    - no-boolean-literal-compare
-    - no-empty-block
-    - prefer-conditional-expressions
-    - no-equal-then-else
