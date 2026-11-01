@@ -292,6 +292,14 @@ class AppStrings {
   final String top5PreviewClip;
   final String top5CommentHint;
   final String top5Audition;
+  final String top5PlayTake;
+  final String top5TakeMissing;
+  final String top5SeedHint;
+  final String top5PreviewNoPicture;
+  final String top5ReloadingPlayer;
+  final String top5Seed;
+  final String top5SeedInvalid;
+  final String top5SeedRange;
   final String top5FooterDone;
   final String top5FooterNarrate;
   final String top5Next;
@@ -324,6 +332,78 @@ class AppStrings {
   final String top5EngineMissing;
   final String top5EngineNotInstalled;
   final String top5EngineMissingHint;
+
+  // ── Phone marking ──
+  final String menuPhoneMarking;
+  final String phoneMarkingTitle;
+  final String phoneMarkingScan;
+  final String phoneMarkingAddress;
+  final String phoneMarkingToken;
+  final String phoneMarkingOpen;
+  final String phoneMarkingStop;
+  final String phoneMarkingRunning;
+  final String phoneMarkingStopped;
+  final String phoneMarkingNoSources;
+  final String phoneMarkingLocalhostHint;
+  final String phoneMarkingStartFailed;
+  final String phoneMarkingFirewallHint;
+  final String phoneMarkingPageTitle;
+  final String phoneMarkingPageSources;
+  final String phoneMarkingPagePlayer;
+  final String phoneMarkingPagePreparing;
+  final String phoneMarkingPageFailed;
+
+  // ── AI marking (docs/ai_marking.md) ──
+  final String menuAiMarking;
+  final String aiTitle;
+  final String aiApiKey;
+  final String aiRememberKey;
+  final String aiShowKey;
+  final String aiHideKey;
+  final String aiModel;
+  final String aiPickVideo;
+  final String aiNoFile;
+  final String aiSupportedFormats;
+  final String aiUnsupportedFormat;
+  final String aiStart;
+  final String aiReanalyze;
+  final String aiStageAudio;
+  final String aiStageMotion;
+  final String aiStageDetect;
+  final String aiStageJudge;
+  final String aiStageDone;
+  final String aiResultsTitle;
+  final String aiVerdictHighlight;
+  final String aiVerdictOrdinary;
+  final String aiVerdictUnjudged;
+  final String aiView;
+  final String aiSaveProject;
+  final String aiUnsupportedBanner;
+  final String aiInvalidKey;
+  final String aiNoHighlight;
+  final String aiNeedKey;
+  final String aiNeedFile;
+  final String aiNoFfmpeg;
+  final String aiMotionUnavailable;
+  final String aiCancelled;
+  final String aiSavedTo;
+
+  // ── AI 打点 · 批量与高光列表 (docs/ai_marking.md §批量) ──
+  final String aiNoFileHighlights;
+  final String aiFileSkipped;
+
+  // ── 球门标定 (docs/ai_marking.md §球门标定) ──
+  final String aiCalibrateGoal;
+  final String goalCalibTitle;
+  final String goalCalibHint;
+  final String goalCalibEmpty;
+  final String goalCalibClear;
+  final String goalCalibSave;
+  final String goalCalibApplySiblings;
+  final String goalCalibNoFrame;
+  final String goalCalibSaveFailed;
+  final String goalCalibLoading;
+
   bool get _zh => code == 'zh';
 
   /// "Picked 3/5" pill in step 1.
@@ -350,6 +430,11 @@ class AppStrings {
       ? '已选 $picked/$want \u00b7 点击左侧片段按名次加入,NO.1 为最佳'
       : 'Picked $picked/$want \u00b7 click a clip on the left to add it by rank, No. 1 is best';
 
+  /// Step 1 pill: the reel already rendered for this period was filled in.
+  String top5RestoredCache(String period, int count) => _zh
+      ? '已恢复 $period 的成片($count 条)'
+      : 'Restored the $period reel ($count picks)';
+
   /// Intro card badge: "TOP 5 · Top 5 goals · 2026-W43".
   String top5IntroBadge(int want, String title, String period) =>
       'TOP $want · $title · $period';
@@ -368,6 +453,11 @@ class AppStrings {
   String top5NarrationPack(String name) =>
       _zh ? '解说:$name(本地克隆)' : 'Narration: $name (cloned locally)';
 
+  /// The same line after an audition: the render reuses the take just heard.
+  String top5NarrationPackCached(String name) => _zh
+      ? '解说:$name(本地克隆 · 用已试听版本)'
+      : 'Narration: $name (local clone, last audition kept)';
+
   /// "Narration: system voice (Huihui)".
   String top5NarrationSystem(String name) => _zh
       ? '解说:系统语音${name.isEmpty ? '' : '($name)'}'
@@ -382,6 +472,13 @@ class AppStrings {
 
   String top5BusyClone(int index, int total) =>
       _zh ? '克隆解说 $index/$total' : 'Cloning narration $index/$total';
+
+  /// Rendering with the take that was auditioned, no clone needed.
+  String top5BusyTake(int index, int total) =>
+      _zh ? '使用试听解说 $index/$total' : 'Using auditioned narration $index/$total';
+
+  /// The seed badge next to the take's play button: "seed 123456789".
+  String top5TakeSeed(int seed) => 'seed $seed';
 
   String top5BusySynth(int index, int total) =>
       _zh ? '合成解说 $index/$total' : 'Synthesising narration $index/$total';
@@ -451,7 +548,7 @@ class AppStrings {
     return out;
   }
 
-  bool get _zh => code == 'zh';
+
 
   String cacheCount(int count, String size) =>
       _zh ? '$count 个 / $size' : '$count files / $size';
@@ -475,6 +572,76 @@ class AppStrings {
 
   String explorerFailed(Object error) =>
       _zh ? 'explorer 启动失败: $error' : 'Could not open Explorer: $error';
+
+  /// 「AI 打点」: how many of the candidates the model could not judge.
+  String aiFailedCount(int count) => _zh
+      ? '$count 段判定失败(已跳过)'
+      : '$count clips failed to judge (skipped)';
+
+  /// 「AI 打点」: "高光 3 / 12" in the results header.
+  String aiHighlightCount(int passed, int total) =>
+      _zh ? '高光 $passed / $total' : '$passed highlights of $total';
+
+  String aiAnalysisFailed(Object error) =>
+      _zh ? '分析失败:$error' : 'Analysing failed: $error';
+
+  String aiSaveFailed(Object error) =>
+      _zh ? '保存项目失败:$error' : 'Saving the project failed: $error';
+
+  /// Description for a candidate that never got a model sentence.
+  String aiCandidateFallback(int index) =>
+      _zh ? 'AI 候选 $index' : 'AI candidate $index';
+
+  /// 「已选 11 个文件（共 125.6 分钟）」 — the picker summary; [minutes] is
+  /// already formatted, and `—` when ffprobe could not read the lengths.
+  String aiPickedFiles(int count, String minutes) => _zh
+      ? '已选 $count 个文件（共 $minutes 分钟）'
+      : '$count files selected ($minutes min)';
+
+  /// File-level progress, above the bar: 「第 2/11 个文件 · 已完成候选 47 段」.
+  ///
+  /// [candidates] is what the batch has produced so far, this file included;
+  /// the stage-level line (抽音频 / 逐段判定 …) stays under the bar.
+  String aiBatchProgress(int index, int total, int candidates) => _zh
+      ? '第 $index/$total 个文件 · 已完成候选 $candidates 段'
+      : 'File $index/$total · $candidates candidates so far';
+
+  /// The 「高光片段」 region title, total included: 「高光片段 · 共 12 段」.
+  String aiHighlightsTotal(int count) =>
+      _zh ? '高光片段 · 共 $count 段' : 'Highlights · $count clips';
+
+  /// One file's group header trailing text: 「4 段高光」.
+  String aiFileHighlightCount(int count) =>
+      _zh ? '$count 段高光' : '$count highlights';
+
+  /// One file's candidate group trailing text: 「47 段候选」.
+  String aiFileCandidateCount(int count) =>
+      _zh ? '$count 段候选' : '$count candidates';
+
+  /// 「已将球门标定应用到 10 个文件」 — one calibration covered the batch.
+  String aiCalibAppliedToBatch(int count) => _zh
+      ? '已将球门标定应用到 $count 个文件'
+      : 'Applied the goal calibration to $count files';
+
+  /// 「1 个文件失败」 in the batch footer, next to the per-segment failures.
+  String aiBatchFileFailed(int count) =>
+      _zh ? '$count 个文件失败' : '$count file(s) failed';
+
+  /// The model's `kind` as a UI label (`goal` / `save` / `shot` / `other`).
+  String aiKindLabel(String kind) => switch (kind) {
+        'goal' => _zh ? '进球' : 'Goal',
+        'save' => _zh ? '扑救' : 'Save',
+        'shot' => _zh ? '射门' : 'Shot',
+        'other' => _zh ? '其他' : 'Other',
+        _ => '—',
+      };
+
+  /// 球门标定: the confirmation after saving, `已标定 2 个球门`.
+  String goalCalibSaved(int count) =>
+      _zh ? '已标定 $count 个球门' : 'Calibrated $count goal(s)';
+
+  /// 球门标定: overlay label and coordinate line prefix, 1-based.
+  String goalCalibGoalLabel(int index) => _zh ? '球门 $index' : 'Goal $index';
 
   const AppStrings({
     required this.openVideoFile,
@@ -714,6 +881,14 @@ class AppStrings {
     required this.top5PreviewClip,
     required this.top5CommentHint,
     required this.top5Audition,
+    required this.top5PlayTake,
+    required this.top5TakeMissing,
+    required this.top5SeedHint,
+    required this.top5PreviewNoPicture,
+    required this.top5ReloadingPlayer,
+    required this.top5Seed,
+    required this.top5SeedInvalid,
+    required this.top5SeedRange,
     required this.top5FooterDone,
     required this.top5FooterNarrate,
     required this.top5Next,
@@ -746,6 +921,69 @@ class AppStrings {
     required this.top5EngineMissing,
     required this.top5EngineNotInstalled,
     required this.top5EngineMissingHint,
+    required this.menuPhoneMarking,
+    required this.phoneMarkingTitle,
+    required this.phoneMarkingScan,
+    required this.phoneMarkingAddress,
+    required this.phoneMarkingToken,
+    required this.phoneMarkingOpen,
+    required this.phoneMarkingStop,
+    required this.phoneMarkingRunning,
+    required this.phoneMarkingStopped,
+    required this.phoneMarkingNoSources,
+    required this.phoneMarkingLocalhostHint,
+    required this.phoneMarkingStartFailed,
+    required this.phoneMarkingFirewallHint,
+    required this.phoneMarkingPageTitle,
+    required this.phoneMarkingPageSources,
+    required this.phoneMarkingPagePlayer,
+    required this.phoneMarkingPagePreparing,
+    required this.phoneMarkingPageFailed,
+    required this.menuAiMarking,
+    required this.aiTitle,
+    required this.aiApiKey,
+    required this.aiRememberKey,
+    required this.aiShowKey,
+    required this.aiHideKey,
+    required this.aiModel,
+    required this.aiPickVideo,
+    required this.aiNoFile,
+    required this.aiSupportedFormats,
+    required this.aiUnsupportedFormat,
+    required this.aiStart,
+    required this.aiReanalyze,
+    required this.aiStageAudio,
+    required this.aiStageMotion,
+    required this.aiStageDetect,
+    required this.aiStageJudge,
+    required this.aiStageDone,
+    required this.aiResultsTitle,
+    required this.aiVerdictHighlight,
+    required this.aiVerdictOrdinary,
+    required this.aiVerdictUnjudged,
+    required this.aiView,
+    required this.aiSaveProject,
+    required this.aiUnsupportedBanner,
+    required this.aiInvalidKey,
+    required this.aiNoHighlight,
+    required this.aiNeedKey,
+    required this.aiNeedFile,
+    required this.aiNoFfmpeg,
+    required this.aiMotionUnavailable,
+    required this.aiCancelled,
+    required this.aiSavedTo,
+    required this.aiNoFileHighlights,
+    required this.aiFileSkipped,
+    required this.aiCalibrateGoal,
+    required this.goalCalibTitle,
+    required this.goalCalibHint,
+    required this.goalCalibEmpty,
+    required this.goalCalibClear,
+    required this.goalCalibSave,
+    required this.goalCalibApplySiblings,
+    required this.goalCalibNoFrame,
+    required this.goalCalibSaveFailed,
+    required this.goalCalibLoading,
   });
 }
 
@@ -834,7 +1072,7 @@ const _en = AppStrings(
   sourceFilesSuffix: ' source files',
   timeslotsSuffix: ' timeslots',
   videoInfoPlaceholder: '1920×1080 · H.264 · 30fps',
-  appVersion: 'Highlight Creator v0.1.4.0',
+  appVersion: 'Highlight Creator v0.4.1.0',
   noVideoLoaded: 'No video loaded',
   openVideo: 'Open Video',
   unknownError: 'Unknown error',
@@ -844,7 +1082,7 @@ const _en = AppStrings(
   languageLabel: 'Language',
   aboutSection: 'About',
   appName: 'Highlight Creator',
-  appVersionInfo: 'Version 0.1.4.0',
+  appVersionInfo: 'Version 0.4.1.0',
   selectLanguage: 'Select Language',
   failedToOpenVideo: 'Failed to open video: ',
   projectSaved: 'Project saved.',
@@ -956,7 +1194,7 @@ const _en = AppStrings(
       'One clean slice per time slot, shared by preview and generate; clearing it just means the next cut is a little slower.',
   cacheNarrationName: 'Top-5 narration',
   cacheNarrationWhat:
-      'Audio from TTS, cloning and auditions; already mixed into the reels.',
+      'Audio from TTS, cloning and auditions, including the last audition of each line; safe to clear after a render.',
   cacheWorkName: 'Top-5 render scratch',
   cacheWorkWhat:
       'Rank cards, transitions, clips and the concat master; useless once the reel exists.',
@@ -1005,6 +1243,15 @@ const _en = AppStrings(
   top5PreviewClip: 'Preview clip',
   top5CommentHint: 'Narration · read over the clip',
   top5Audition: 'Audition this line',
+  top5PlayTake: 'Play the last audition',
+  top5TakeMissing: 'No audition kept yet — press “Audition this line” first',
+  top5SeedHint: 'Seed of this take: type it into the studio to hear it again',
+  top5PreviewNoPicture:
+      'The picture did not come out (logged). Press ▶ again to reload the player.',
+  top5ReloadingPlayer: 'Reloading the player…',
+  top5Seed: 'seed',
+  top5SeedInvalid: 'seed must be an integer between 0 and 4294967295',
+  top5SeedRange: 'range 0 – 4294967295, default 50',
   top5FooterDone: 'Rendered · change the voice or a comment and press Regenerate',
   top5FooterNarrate: 'Narration is stored on the entry, it never appears on screen',
   top5Next: 'Next',
@@ -1038,6 +1285,74 @@ const _en = AppStrings(
   top5EngineNotInstalled:
       'The local cloning engine is not installed. Run tools\\voice_clone\\setup.bat once to add it.',
   top5EngineMissingHint: 'The “use my own voice” section below needs that engine.',
+  menuPhoneMarking: 'Phone marking',
+  phoneMarkingTitle: 'Phone marking',
+  phoneMarkingScan: 'Scan the QR code with your phone',
+  phoneMarkingAddress: 'Address',
+  phoneMarkingToken: 'Token',
+  phoneMarkingOpen: 'Open',
+  phoneMarkingStop: 'Stop',
+  phoneMarkingRunning: 'Server running',
+  phoneMarkingStopped: 'Server stopped',
+  phoneMarkingNoSources: 'The open project has no sources yet.',
+  phoneMarkingLocalhostHint:
+      'No LAN address found — falling back to localhost, which a phone cannot reach.',
+  phoneMarkingStartFailed: 'Could not start the server: ',
+  phoneMarkingFirewallHint:
+      'The phone must be on the same Wi-Fi as the PC. If Windows asks about the firewall on first listen, allow it on private networks.',
+  phoneMarkingPageTitle: 'Phone marking',
+  phoneMarkingPageSources: 'Sources',
+  phoneMarkingPagePlayer: 'Pick a source above — its proxy plays here.',
+  phoneMarkingPagePreparing: 'Preparing the proxy',
+  phoneMarkingPageFailed: 'The proxy failed — reload the page to retry.',
+  menuAiMarking: 'AI marking',
+  aiTitle: 'AI marking',
+  aiApiKey: 'DeepSeek API key',
+  aiRememberKey: 'Remember',
+  aiShowKey: 'Show',
+  aiHideKey: 'Hide',
+  aiModel: 'Model',
+  aiPickVideo: 'Choose match video',
+  aiNoFile: 'No file chosen',
+  aiSupportedFormats: 'mp4 / mov / mkv',
+  aiUnsupportedFormat: 'Only mp4 / mov / mkv are supported.',
+  aiStart: 'Analyse',
+  aiReanalyze: 'Analyse again',
+  aiStageAudio: 'Extracting audio',
+  aiStageMotion: 'Scanning screen motion',
+  aiStageDetect: 'Finding candidates',
+  aiStageJudge: 'Judging',
+  aiStageDone: 'Done',
+  aiResultsTitle: 'Candidates',
+  aiVerdictHighlight: 'Highlight',
+  aiVerdictOrdinary: 'Ordinary',
+  aiVerdictUnjudged: 'Not judged',
+  aiView: 'View',
+  aiSaveProject: 'Save as project',
+  aiUnsupportedBanner:
+      'This model does not accept image input, so only the candidates were kept (not judged by AI).',
+  aiInvalidKey: 'The API key is invalid; analysis stopped.',
+  aiNoHighlight: 'No candidate passed, so no project file was written.',
+  aiNeedKey: 'Enter an API key first.',
+  aiNeedFile: 'Choose a video first.',
+  aiNoFfmpeg: 'ffmpeg was not found, so nothing can be analysed.',
+  aiMotionUnavailable:
+      'Screen-motion analysis is unavailable, so this run uses sound only.',
+  aiCancelled: 'Cancelled.',
+  aiSavedTo: 'Saved to ',
+  aiNoFileHighlights: 'No highlights detected',
+  aiFileSkipped: 'Skipped (analysis failed)',
+  aiCalibrateGoal: 'Calibrate goals',
+  goalCalibTitle: 'Goal calibration',
+  goalCalibHint:
+      'Drag on the frame to box each goal — up to two. A third drag replaces the second.',
+  goalCalibEmpty: 'No goal boxed yet — drag on the frame.',
+  goalCalibClear: 'Clear',
+  goalCalibSave: 'Save',
+  goalCalibApplySiblings: 'Apply to every video in this folder',
+  goalCalibNoFrame: 'No frame could be read, so calibration is unavailable.',
+  goalCalibSaveFailed: 'Saving the calibration failed, so it will not be used.',
+  goalCalibLoading: 'Reading a frame',
 );
 
 const _zh = AppStrings(
@@ -1123,7 +1438,7 @@ const _zh = AppStrings(
   sourceFilesSuffix: ' 个源文件',
   timeslotsSuffix: ' 个时间片段',
   videoInfoPlaceholder: '1920×1080 · H.264 · 30fps',
-  appVersion: 'Highlight Creator v0.1.4.0',
+  appVersion: 'Highlight Creator v0.4.1.0',
   noVideoLoaded: '未加载视频',
   openVideo: '打开视频',
   unknownError: '未知错误',
@@ -1133,7 +1448,7 @@ const _zh = AppStrings(
   languageLabel: '语言',
   aboutSection: '关于',
   appName: 'Highlight Creator',
-  appVersionInfo: '版本 0.1.4.0',
+  appVersionInfo: '版本 0.4.1.0',
   selectLanguage: '选择语言',
   failedToOpenVideo: '打开视频失败: ',
   projectSaved: '项目已保存。',
@@ -1239,7 +1554,7 @@ const _zh = AppStrings(
   cacheSlicesName: '五佳球切片缓存',
   cacheSlicesWhat: '每个时间槽的一份干净切片，预览和生成共用；清空后下次自动重切，只是慢一点。',
   cacheNarrationName: '五佳球配音',
-  cacheNarrationWhat: 'TTS / 克隆 / 试听生成的音频，渲染时已混进成片。',
+  cacheNarrationWhat: 'TTS / 克隆 / 试听生成的音频，含每条解说最后一次试听的版本，渲染后即可清理。',
   cacheWorkName: '五佳球渲染中间文件',
   cacheWorkWhat: '排名卡、转场、片段和拼接用的 master，拼接后就没用了。',
   cacheTemplatesName: '内置模板视频',
@@ -1284,6 +1599,14 @@ const _zh = AppStrings(
   top5PreviewClip: '预览片段',
   top5CommentHint: '解说 · 成片里念出来',
   top5Audition: '试听这句解说',
+  top5PlayTake: '播放上次试听',
+  top5TakeMissing: '还没有可播放的试听版本,先点「试听这句解说」',
+  top5SeedHint: '这一版的 seed:填到语音工作室里可以复现同一版',
+  top5PreviewNoPicture: '画面没有出来(已记录日志),再点一次 ▶ 重新加载播放器',
+  top5ReloadingPlayer: '重新加载播放器…',
+  top5Seed: 'seed',
+  top5SeedInvalid: 'seed 必须是 0 – 4294967295 之间的整数',
+  top5SeedRange: '范围 0 – 4294967295，默认 50',
   top5FooterDone: '已生成 · 不满意可以换语音/改解说后点「重新生成」',
   top5FooterNarrate: '解说保存在条目里,渲染时不出现在画面上',
   top5Next: '下一步',
@@ -1316,6 +1639,70 @@ const _zh = AppStrings(
   top5EngineMissing: '本机还没有安装本地克隆引擎（voice_clone 目录不在）。',
   top5EngineNotInstalled: '本地克隆引擎未安装,请先运行 tools\\voice_clone\\setup.bat',
   top5EngineMissingHint: '下面「用我自己的声音」这一节要装好引擎才能用。',
+  menuPhoneMarking: '手机打点',
+  phoneMarkingTitle: '手机打点',
+  phoneMarkingScan: '用手机扫描二维码打开',
+  phoneMarkingAddress: '监听地址',
+  phoneMarkingToken: '令牌',
+  phoneMarkingOpen: '打开',
+  phoneMarkingStop: '停止',
+  phoneMarkingRunning: '服务运行中',
+  phoneMarkingStopped: '服务已停止',
+  phoneMarkingNoSources: '当前项目还没有片源。',
+  phoneMarkingLocalhostHint: '没有找到局域网地址，已回退到 localhost；手机无法访问。',
+  phoneMarkingStartFailed: '启动失败: ',
+  phoneMarkingFirewallHint:
+      '手机需要和电脑在同一个 Wi-Fi。Windows 首次提示防火墙时，请允许「专用网络」。',
+  phoneMarkingPageTitle: '手机打点',
+  phoneMarkingPageSources: '片源',
+  phoneMarkingPagePlayer: '点上面的片源，代理视频在这里播放。',
+  phoneMarkingPagePreparing: '正在生成代理',
+  phoneMarkingPageFailed: '代理生成失败，刷新页面重试。',
+  menuAiMarking: 'AI 打点',
+  aiTitle: 'AI 打点',
+  aiApiKey: 'DeepSeek API Key',
+  aiRememberKey: '记住',
+  aiShowKey: '显示',
+  aiHideKey: '隐藏',
+  aiModel: '模型',
+  aiPickVideo: '选择比赛视频',
+  aiNoFile: '未选择文件',
+  aiSupportedFormats: '支持 mp4 / mov / mkv',
+  aiUnsupportedFormat: '只支持 mp4 / mov / mkv。',
+  aiStart: '开始分析',
+  aiReanalyze: '重新分析',
+  aiStageAudio: '抽音频',
+  aiStageMotion: '算画面运动',
+  aiStageDetect: '找候选',
+  aiStageJudge: '逐段判定',
+  aiStageDone: '完成',
+  aiResultsTitle: '候选片段',
+  aiVerdictHighlight: '高光',
+  aiVerdictOrdinary: '普通',
+  aiVerdictUnjudged: '未判定',
+  aiView: '查看',
+  aiSaveProject: '保存为项目',
+  aiUnsupportedBanner: '该模型不支持图片输入，已只保留候选（未经 AI 判定）',
+  aiInvalidKey: 'API Key 无效，已停止分析。',
+  aiNoHighlight: '没有判定为高光的候选，未写出项目文件。',
+  aiNeedKey: '请先填写 API Key。',
+  aiNeedFile: '请先选择视频文件。',
+  aiNoFfmpeg: '找不到 ffmpeg，无法分析。',
+  aiMotionUnavailable: '画面运动不可用，仅用声音。',
+  aiCancelled: '已取消。',
+  aiSavedTo: '已保存到 ',
+  aiNoFileHighlights: '无检出高光',
+  aiFileSkipped: '已跳过（分析失败）',
+  aiCalibrateGoal: '标定球门',
+  goalCalibTitle: '球门标定',
+  goalCalibHint: '在画面上拖动框出球门，最多 2 个；再拖会替换第 2 个。',
+  goalCalibEmpty: '还没有框选球门：在画面上拖动。',
+  goalCalibClear: '清除',
+  goalCalibSave: '保存',
+  goalCalibApplySiblings: '应用到同目录所有视频',
+  goalCalibNoFrame: '无法取帧，标定不可用',
+  goalCalibSaveFailed: '保存标定失败，本次不会使用它。',
+  goalCalibLoading: '正在取帧',
 );
 
 /// Reactive provider: current language string ('English' or '中文').

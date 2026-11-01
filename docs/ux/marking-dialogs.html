@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 标注与导航对话框</title>
+<link rel="stylesheet" href="assets/proto.css">
+<style>
+  /* Only this page needs the AlertDialog field rows, the frame panel and the
+     guide dots, so they live here. Everything else comes from proto.css. */
+  .stack { width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+  .blk { display: flex; flex-direction: column; }
+  .row3 { display: flex; gap: 20px; align-items: flex-start; }
+
+  .cap {
+    font-size: 12px; color: var(--faint); margin: 0 0 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cap b { color: var(--text); font-weight: 600; }
+  .cap code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: 11px; color: var(--gold);
+  }
+
+  /* ------------------------------------------------ go-to: three hh/mm/ss fields */
+  .flabel { font-size: 12px; color: var(--text); margin-bottom: 4px; }
+  .hms { display: flex; align-items: center; }
+  .hms .f {
+    position: relative; width: 64px; padding: 9px 4px; text-align: center;
+    background: var(--ink); border: 1px solid rgba(255, 255, 255, .22);
+    border-radius: 6px; font-size: 12px; color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .hms .f--focus { border-color: var(--gold); box-shadow: 0 0 0 1px rgba(242, 185, 51, .28); }
+  .hms .f__l {
+    position: absolute; top: -6px; left: 4px; padding: 0 3px; line-height: 1;
+    background: var(--ink); font-size: 9px; color: var(--muted);
+  }
+  .hms .f__e { font-size: 11px; color: var(--faint); }
+  .hms .c { padding: 0 4px; color: var(--muted); }
+  .err { margin-top: 8px; font-size: 12px; color: var(--red-soft); }
+
+  /* SnackBar strips (the prototype shows them as pieces, not as a live timer). */
+  .snack {
+    background: #2c2c31; border-radius: 6px; padding: 9px 14px;
+    font-size: 12.5px; color: var(--text); white-space: nowrap;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
+  }
+
+  /* ------------------------------------------------ breakdown sections */
+  .sech { display: flex; align-items: center; margin-bottom: 6px; }
+  .sech__t { font-size: 13px; font-weight: 600; }
+  .sech .btn { margin-left: auto; }
+  .secbox {
+    min-height: 60px; padding: 10px; border-radius: 8px;
+    background: rgba(255, 255, 255, .035);
+    border: 1px solid rgba(255, 255, 255, .04);
+    font-size: 13px; line-height: 1.6; color: var(--text);
+  }
+  .bdempty { height: 220px; display: grid; place-items: center; font-size: 13px; }
+
+  /* ------------------------------------------------ zoom-in point frame */
+  .frame {
+    position: relative; width: 800px; height: 450px; overflow: hidden;
+    border-radius: 8px; cursor: cell;
+    background:
+      linear-gradient(180deg, #1c2a1c 0%, #24361f 46%, #2c3f24 100%);
+    border: 1px solid var(--line);
+  }
+  .frame .tag {
+    position: absolute; left: 10px; top: 8px; z-index: 3;
+    font-size: 10px; color: rgba(255, 255, 255, .42);
+  }
+  .pitch { position: absolute; inset: 30px; border: 1px solid rgba(255, 255, 255, .10); }
+  .pitch::before {
+    content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+    background: rgba(255, 255, 255, .10);
+  }
+  .pitch::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 90px; height: 90px;
+    margin: -45px 0 0 -45px; border: 1px solid rgba(255, 255, 255, .10);
+    border-radius: 50%;
+  }
+  .cx { position: absolute; background: rgba(255, 255, 255, .5); z-index: 2; }
+  .cx--h { left: 0; right: 0; top: 55%; height: 1px; }
+  .cx--v { top: 0; bottom: 0; left: 78%; width: 1px; }
+  .mark {
+    position: absolute; left: 62%; top: 40%; width: 16px; height: 16px;
+    margin: -8px 0 0 -8px; border-radius: 50%; background: var(--red); z-index: 4;
+  }
+  .mark__h {
+    position: absolute; left: 62%; top: 40%; width: 24px; height: 2px;
+    margin: -1px 0 0 -12px; background: var(--red); z-index: 4;
+  }
+  .mark__v {
+    position: absolute; left: 62%; top: 40%; width: 2px; height: 24px;
+    margin: -12px 0 0 -1px; background: var(--red); z-index: 4;
+  }
+  .nf {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 13px; color: rgba(255, 255, 255, .54);
+  }
+  .zrow { display: flex; align-items: center; gap: 4px; margin-top: 16px; }
+
+  /* checkbox: 16px box, gold when on (Checkbox follows colorScheme.primary) */
+  .cb {
+    width: 16px; height: 16px; flex: none; border-radius: 3px;
+    border: 1.5px solid rgba(255, 255, 255, .38);
+    display: grid; place-items: center; font-size: 11px; line-height: 1;
+    color: #1a1400;
+  }
+  .cb--on { background: var(--gold); border-color: var(--gold); }
+
+  .btn--green {
+    background: #388e3c; border-color: #388e3c; color: #fff; font-weight: 600;
+  }
+
+  /* ------------------------------------------------ guide: screenshot stand-in */
+  .shot {
+    position: relative; width: 640px; height: 360px; border-radius: 8px;
+    overflow: hidden; border: 1px solid var(--line); background: var(--panel-2);
+    display: flex; flex-direction: column;
+  }
+  .shot__bar {
+    height: 22px; flex: none; display: flex; align-items: center; gap: 5px;
+    padding: 0 8px; background: #0f0f13; border-bottom: 1px solid var(--line);
+  }
+  .shot__bar i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .18); }
+  .shot__name { margin-left: auto; font-size: 9px; color: rgba(255, 255, 255, .28); }
+  .shot__main { flex: 1; min-height: 0; display: flex; }
+  .shot__side { width: 176px; flex: none; padding: 6px; border-right: 1px solid var(--line); }
+  .shot__h { font-size: 9px; color: var(--faint); margin-bottom: 4px; }
+  .shot__row {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 4px; font-size: 8.5px; color: var(--muted);
+    border-radius: 3px; margin-bottom: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .shot__row--add {
+    color: var(--gold); background: rgba(242, 185, 51, .10);
+    outline: 1.5px dashed var(--gold); outline-offset: 2px;
+  }
+  .shot__num { margin-left: auto; font-size: 9px; }
+  .shot__video {
+    flex: 1; display: grid; place-items: center; font-size: 20px;
+    color: rgba(255, 255, 255, .18);
+    background: radial-gradient(120% 100% at 50% 0%, #1a1a22 0%, #0b0b0e 100%);
+  }
+  .shot__tl {
+    height: 34px; flex: none; display: flex; align-items: center; gap: 4px;
+    padding: 0 10px; background: #0f0f13; border-top: 1px solid var(--line);
+  }
+  .shot__tl i { height: 4px; border-radius: 2px; flex: 1; background: rgba(255, 255, 255, .10); }
+  .shot__tl i.on { background: rgba(242, 185, 51, .55); }
+
+  .dots { display: flex; align-items: center; gap: 6px; }
+  .dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .31); }
+  .dots i.on { background: var(--gold); }
+  .cbwrap { width: 280px; flex: none; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+
+  /* reference list: the eight captions, verbatim */
+  .pagelist { display: flex; flex-direction: column; gap: 5px; font-size: 12px; line-height: 1.7; color: var(--muted); }
+  .pagelist .n { display: inline-block; width: 24px; color: var(--gold); }
+</style>
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a>
+  <a href="main-window.html">主窗口</a>
+  <a href="template-editor.html">模板</a>
+  <a href="marking-dialogs.html" class="on">标注</a>
+  <a href="phone-marking.html">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <a href="ai-marking.html">AI 打点</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 2026-11</span>
+</nav>
+
+<div class="stage stage--top">
+  <div class="stack">
+
+    <div class="note">
+      <b>主窗口的四个小对话框</b> —— 标注与导航用，平时不占版面：
+      <b>前往时间</b>（<code>go_to_dialog.dart</code>）、<b>片段拆分</b>（<code>clip_breakdown_dialog.dart</code>）、
+      <b>放大定位点</b>（<code>zoom_in_point_dialog.dart</code>，Make 的第一步）、
+      <b>使用指南</b>（<code>guide_dialog.dart</code>，首次启动自动弹）。
+      文案逐字取自 <code>data/l10n.dart</code> 的 <code>_zh</code> 串
+      （<code>goto*</code> / <code>zoom*</code> / <code>guide*</code> / <code>common*</code>）；
+      片段分类是按 <code>clip_category.dart</code> 的关键词规则逐条对出来的，不是随手写的。
+      Material 的主题主色（<code>colorSchemeSeed = #6C63FF</code>）在这套原型里统一用金色代替，与其它页面一致；
+      绿色只出现在放大定位点的「完成」上（代码里就是 <code>Colors.green.shade700</code>）。
+    </div>
+
+    <!-- ================================================= 1. 前往时间 -->
+    <div class="blk">
+      <div class="note">
+        <b>前往时间</b>（标题是<b>跳转到指定时间</b>）—— <code>go_to_dialog.dart → GoToDialog</code>，
+        AlertDialog，key <code>goto_dialog</code>。
+        两组三格时间输入：<b>目标时间</b> + 可选的<b>基准时间</b>，每组三个 64px 宽、居中、只能输数字的小框
+        （hh / mm / ss；<code>issues.md</code> 要求拆成三格，不是一个文本框）。
+        实际跳转 = <code>目标 − 基准</code>（基准为空时就是目标），负数按 0 算；
+        空格子按 0，分、秒必须在 0–59，任何一格非数字或越界都只在内容底部显示
+        「时间格式无效，请使用 时:分:秒」，对话框不关。
+        基准时间会记住（存 <code>hh:mm:ss</code>，清空则存空串），所以下次打开中间一栏是回填好的；
+        目标那栏的 hh 一打开就带焦点。
+        <br><b>这个对话框不选源、不选片段</b>：跳转发生在「所有源按顺序拼接」的总时间轴上——
+        总时长已知时先算出落在第几个源、在该源的本地偏移处加载并播放；只有一个源又没有时长元数据时直接在该源内跳；
+        超过总时长就截断到结尾。入口：<code>我要 → 跳转到指定时间</code>，或 <code>Ctrl + G</code>
+        （光标在输入框里打字时热键不触发）。
+      </div>
+
+      <div class="row3">
+        <div class="blk">
+          <div class="cap"><b>刚打开</b> 目标为空，基准回填上次记住的 00:10:00</div>
+          <div class="dlg dlg--auto" style="width:360px">
+            <div class="dlg__head" style="padding:14px 20px 8px">
+              <div class="title" style="font-size:16px">跳转到指定时间</div>
+            </div>
+            <div class="dlg__body" style="padding:0 20px 4px">
+              <div class="flabel">目标时间 (时:分:秒)</div>
+              <div class="hms">
+                <div class="f f--focus"><span class="f__e">hh</span></div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__e">mm</span></div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__e">ss</span></div>
+              </div>
+              <div style="height:12px"></div>
+              <div class="flabel">基准时间（可选，时:分:秒）</div>
+              <div class="hms">
+                <div class="f"><span class="f__l">hh</span>00</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">mm</span>10</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">ss</span>00</div>
+              </div>
+            </div>
+            <div class="dlg__foot" style="justify-content:flex-end;gap:4px;padding:6px 20px 14px">
+              <button class="btn btn--ghost">取消</button>
+              <button class="btn btn--primary">跳转</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <div class="cap"><b>已填写</b> 00:12:30 − 00:10:00 = 实际跳到 00:02:30</div>
+          <div class="dlg dlg--auto" style="width:360px">
+            <div class="dlg__head" style="padding:14px 20px 8px">
+              <div class="title" style="font-size:16px">跳转到指定时间</div>
+            </div>
+            <div class="dlg__body" style="padding:0 20px 4px">
+              <div class="flabel">目标时间 (时:分:秒)</div>
+              <div class="hms">
+                <div class="f f--focus"><span class="f__l">hh</span>00</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">mm</span>12</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">ss</span>30</div>
+              </div>
+              <div style="height:12px"></div>
+              <div class="flabel">基准时间（可选，时:分:秒）</div>
+              <div class="hms">
+                <div class="f"><span class="f__l">hh</span>00</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">mm</span>10</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">ss</span>00</div>
+              </div>
+            </div>
+            <div class="dlg__foot" style="justify-content:flex-end;gap:4px;padding:6px 20px 14px">
+              <button class="btn btn--ghost">取消</button>
+              <button class="btn btn--primary">跳转</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <div class="cap"><b>输入非法</b> 分填 90 → 底部一行红字，框不关</div>
+          <div class="dlg dlg--auto" style="width:360px">
+            <div class="dlg__head" style="padding:14px 20px 8px">
+              <div class="title" style="font-size:16px">跳转到指定时间</div>
+            </div>
+            <div class="dlg__body" style="padding:0 20px 4px">
+              <div class="flabel">目标时间 (时:分:秒)</div>
+              <div class="hms">
+                <div class="f"><span class="f__l">hh</span>00</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">mm</span>90</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">ss</span>00</div>
+              </div>
+              <div style="height:12px"></div>
+              <div class="flabel">基准时间（可选，时:分:秒）</div>
+              <div class="hms">
+                <div class="f"><span class="f__l">hh</span>00</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">mm</span>10</div>
+                <span class="c">:</span>
+                <div class="f"><span class="f__l">ss</span>00</div>
+              </div>
+              <div class="err">时间格式无效，请使用 时:分:秒</div>
+            </div>
+            <div class="dlg__foot" style="justify-content:flex-end;gap:4px;padding:6px 20px 14px">
+              <button class="btn btn--ghost">取消</button>
+              <button class="btn btn--primary">跳转</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cap" style="margin-top:20px">
+        <b>确定之后，主窗口底部的 SnackBar</b>（三句都是 <code>gotoSeeked</code> / <code>gotoClamped</code> /
+        <code>gotoNoSource</code> 拼出来的）
+      </div>
+      <div class="row3">
+        <div class="snack">已跳转至 00:02:30</div>
+        <div class="snack">已跳转至 00:20:00（超出总时长，已截断到结尾）</div>
+        <div class="snack">项目中没有源视频</div>
+      </div>
+    </div>
+
+    <!-- ================================================= 2. 片段拆分 -->
+    <div class="blk">
+      <div class="note">
+        <b>片段拆分</b>（标题是<b>时间片段分类明细</b>）——
+        <code>clip_breakdown_dialog.dart → ClipBreakdownDialog</code>，从
+        <code>我要 → 时间片段分类明细</code> 打开（项目里一条片段都没有时，这个菜单项是灰的）。
+        820×700 的固定窗口，正文自己滚。
+        眉标一行 <code>项目名 · 共 N 条 · 进攻 X · 防守 Y</code>，只有存在未分类时才多出一段
+        <code>· 未分类 Z</code>。
+        正文按类分段：标题 <code>进攻 N 条</code> + 右侧「复制」，段内一行一条 <code>序号 描述</code>；
+        序号是这条片段在整个项目里的 1-based 位置——和 Make 时转场卡上印的编号是同一个数。
+        分类不是人工分的：<code>classifyClip()</code> 按关键词判定（没收 / 扑出 / 扑救 / 门将 / 出击…是防守，
+        进球 / 破门 / 得分 / 助攻 / 门梁 / 门柱…是进攻，两边都不中才是<b>未分类</b>），
+        未分类照样显示、不会被藏起来；空描述写成「（无描述）」。
+        底栏左边那句是给评审看的规则说明：「序号与 Make 时转场卡上的编号一致」。
+        <b>「复制全部」只拼进攻 + 防守两段</b>（空段写「（无）」，两段之间空一行），未分类不进剪贴板；
+        每段和全部各弹一句「已复制…」，2 秒后自己消失。
+      </div>
+
+      <div class="cap"><b>有片段</b> 8 条：进攻 3 / 防守 3 / 未分类 2</div>
+      <div class="dlg" style="width:820px;height:700px">
+        <div class="dlg__head" style="padding:14px 20px 10px">
+          <span style="font-size:17px;line-height:1;color:var(--muted)">☰</span>
+          <div class="title" style="font-size:15px">时间片段分类明细</div>
+          <div class="grow"></div>
+          <button class="iconbtn" title="关闭">✕</button>
+        </div>
+        <div style="padding:0 20px 10px;font-size:12px;color:var(--muted)">
+          老街球场夜场 · 共 8 条 · 进攻 3 · 防守 3 · 未分类 2
+        </div>
+        <div class="divider"></div>
+        <div class="dlg__body" style="padding:12px 20px;overflow:hidden">
+          <div class="sech">
+            <span class="sech__t">进攻 3 条</span>
+            <button class="btn btn--ghost btn--sm">❐ 复制</button>
+          </div>
+          <div class="secbox">2 小王远射破门<br>5 7号顺子单刀进球<br>7 老庄底线传中助攻</div>
+
+          <div style="height:14px"></div>
+          <div class="sech">
+            <span class="sech__t">防守 3 条</span>
+            <button class="btn btn--ghost btn--sm">❐ 复制</button>
+          </div>
+          <div class="secbox">1 老庄没收皮球<br>3 门将飞身扑救<br>8 门将出击摘高球</div>
+
+          <div style="height:14px"></div>
+          <div class="sech">
+            <span class="sech__t">未分类 2 条</span>
+            <button class="btn btn--ghost btn--sm">❐ 复制</button>
+          </div>
+          <div class="secbox">4 老庄头球攻门<br>6 后腰卡位断球</div>
+        </div>
+        <div class="divider"></div>
+        <div class="dlg__foot" style="padding:10px 20px 12px">
+          <span class="faint" style="font-size:12px">序号与 Make 时转场卡上的编号一致</span>
+          <div class="grow"></div>
+          <button class="btn btn--ghost">❐ 复制全部</button>
+          <button class="btn btn--primary">关闭</button>
+        </div>
+      </div>
+
+      <div class="cap" style="margin-top:22px">
+        <b>空项目</b> 内容区只剩一行居中文字，「复制全部」变灰（没有片段时三类分段整段不渲染）
+      </div>
+      <div class="dlg dlg--auto" style="width:820px">
+        <div class="dlg__head" style="padding:14px 20px 10px">
+          <span style="font-size:17px;line-height:1;color:var(--muted)">☰</span>
+          <div class="title" style="font-size:15px">时间片段分类明细</div>
+          <div class="grow"></div>
+          <button class="iconbtn" title="关闭">✕</button>
+        </div>
+        <div style="padding:0 20px 10px;font-size:12px;color:var(--muted)">
+          新项目 · 共 0 条 · 进攻 0 · 防守 0
+        </div>
+        <div class="divider"></div>
+        <div class="bdempty">当前项目还没有片段</div>
+        <div class="divider"></div>
+        <div class="dlg__foot" style="padding:10px 20px 12px">
+          <span class="faint" style="font-size:12px">序号与 Make 时转场卡上的编号一致</span>
+          <div class="grow"></div>
+          <button class="btn btn--ghost" disabled>❐ 复制全部</button>
+          <button class="btn btn--primary">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================= 3. 放大定位点 -->
+    <div class="blk">
+      <div class="note">
+        <b>放大定位点</b>（标题是<b>设置放大的画面中心</b>）——
+        <code>zoom_in_point_dialog.dart → ZoomInPointDialog</code>，Make 流程的第一步
+        （<code>control_panel.dart → openMakeFlow()</code>）：只有勾了「远端」的片段会进这个对话框，
+        设完放大中心才轮到「预览与确认」。
+        画面是每个远端片段<b>入点那一帧</b>（<code>extractFrame(timestampSecs: inPointMs / 1000)</code>，
+        抽到结果目录的 <code>zoom_point_frame_&lt;i&gt;.png</code>，关窗时删掉）。
+        鼠标移进来是十字准星（白 50%、1px）；<b>左键</b>记一个红点（实心圆 r=8 + 上下左右各 12px 十字），
+        <b>右键</b>清掉当前点；坐标按画面比例归一化成 0–1，最后写回片段的 <code>centerX / centerY</code>。
+        「应用到所有」默认勾着：这时「下一步」是灰的（一步设完就够），<b>完成</b>会把第一个点盖到所有远端片段上；
+        取消勾选后才能一片一片点「下一步」，最后一页的「下一步」同样不可用。
+        帧没抽出来时画面区只显示「无法加载画面」，照样能完成（没标记 = 这些片段不改动）。
+        点 ✕ 等于取消，返回空，一个片段都不动。
+      </div>
+
+      <div class="cap"><b>第 1 页 · 已点中心点</b> 应用到所有勾着 → 「下一步」不可用，只能「完成」</div>
+      <div class="dlg dlg--auto" style="width:832px">
+        <div style="padding:16px">
+          <div style="display:flex;align-items:center">
+            <div style="font-size:18px;font-weight:700">设置放大的画面中心</div>
+            <div style="flex:1"></div>
+            <button class="iconbtn" title="关闭">✕</button>
+          </div>
+          <div class="divider" style="margin:2px 0 0"></div>
+          <div style="font-size:12px;color:var(--muted);margin:8px 0">时间片段 1/3: 老庄没收皮球</div>
+          <div class="frame">
+            <div class="pitch"></div>
+            <div class="tag">片段首帧 · 1920×1080（示意）</div>
+            <div class="cx cx--h"></div>
+            <div class="cx cx--v"></div>
+            <div class="mark"></div>
+            <div class="mark__h"></div>
+            <div class="mark__v"></div>
+          </div>
+          <div class="zrow">
+            <span class="cb cb--on">✓</span>
+            <span style="font-size:13px">应用到所有</span>
+            <div style="width:16px"></div>
+            <button class="btn btn--primary" disabled>下一步</button>
+            <div style="flex:1"></div>
+            <button class="btn btn--green">完成</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="cap" style="margin-top:22px">
+        <b>抽帧失败 · 不应用全部</b> 画面区只剩「无法加载画面」，取消勾选后「下一步」恢复可用
+      </div>
+      <div class="dlg dlg--auto" style="width:832px">
+        <div style="padding:16px">
+          <div style="display:flex;align-items:center">
+            <div style="font-size:18px;font-weight:700">设置放大的画面中心</div>
+            <div style="flex:1"></div>
+            <button class="iconbtn" title="关闭">✕</button>
+          </div>
+          <div class="divider" style="margin:2px 0 0"></div>
+          <div style="font-size:12px;color:var(--muted);margin:8px 0">时间片段 2/3: 门将飞身扑救</div>
+          <div class="frame">
+            <div class="tag">片段首帧 · 1920×1080（示意）</div>
+            <div class="nf">无法加载画面</div>
+          </div>
+          <div class="zrow">
+            <span class="cb"></span>
+            <span style="font-size:13px">应用到所有</span>
+            <div style="width:16px"></div>
+            <button class="btn btn--primary">下一步</button>
+            <div style="flex:1"></div>
+            <button class="btn btn--green">完成</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================= 4. 使用指南 -->
+    <div class="blk">
+      <div class="note">
+        <b>使用指南</b>（标题是<b>新手指引</b>）—— <code>guide_dialog.dart → GuideDialog</code>。
+        首次启动自动弹（<code>main_window.dart → _maybeShowGuide()</code>，设置项 <code>guideAutoShow</code>
+        默认 true），之后也能从 <code>设置 → 帮助 → 新手指引</code> 再打开。
+        960×620，8 页横滑：每页一张带标注的截图
+        （<code>windows/res/guide_zh_01.png</code>…，英文界面读 <code>guide_en_*</code>，
+        由 <code>test/e2e/guide_screenshots_test.dart</code> 生成）+ 页面下方一句说明；
+        图片缺失时退化成一个巨大的页码。
+        顶部右上角是页码 <code>1 / 8</code>；底栏左边「以后不再自动弹出」，
+        勾上就立刻把 <code>guideAutoShow</code> 写成 false（下次不再自动弹，手动打开不受影响），
+        中间 8 个圆点，右边「上一步 / 下一步」——最后一页「下一步」变「完成」，第一页「上一步」是灰的。
+        截图在原型里是<b>替身</b>（原型目录里没有这些 png），只画了窗口骨架 + 金色标注圈。
+      </div>
+
+      <div class="cap"><b>第 1 页</b> 上一步是灰的，（未勾选）以后不再自动弹出</div>
+      <div class="dlg" style="width:960px;height:620px">
+        <div class="dlg__head" style="padding:8px 8px 8px 16px">
+          <span style="font-size:17px;color:var(--gold)">📖</span>
+          <div class="title" style="font-weight:600">新手指引</div>
+          <div class="grow"></div>
+          <span style="font-size:12px;color:var(--faint)">1 / 8</span>
+          <div style="width:8px"></div>
+          <button class="iconbtn" title="关闭">✕</button>
+        </div>
+        <div class="divider"></div>
+        <div class="dlg__body" style="padding:0">
+          <div style="flex:1;display:grid;place-items:center;padding:16px 24px 8px">
+            <div class="shot">
+              <div class="shot__bar">
+                <i></i><i></i><i></i>
+                <span class="shot__name">guide_zh_01.png</span>
+              </div>
+              <div class="shot__main">
+                <div class="shot__side">
+                  <div class="shot__h">源文件</div>
+                  <div class="shot__row">老街球场-上半场.mp4</div>
+                  <div class="shot__row">老街球场-下半场.mp4</div>
+                  <div class="shot__row shot__row--add">＋ 添加视频文件<span class="shot__num">①</span></div>
+                  <div class="shot__row">新项目</div>
+                  <div class="shot__row">老街球场夜场</div>
+                </div>
+                <div class="shot__video">▶</div>
+              </div>
+              <div class="shot__tl">
+                <i class="on"></i><i></i><i></i><i></i><i class="on"></i><i></i><i class="on"></i><i></i>
+              </div>
+            </div>
+          </div>
+          <div style="padding:0 32px 8px;text-align:center;font-size:16px">
+            在源文件中点击添加按钮，添加视频文件
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="dlg__foot" style="padding:4px 16px 8px">
+          <div class="cbwrap">
+            <span class="cb"></span>
+            <span>以后不再自动弹出</span>
+          </div>
+          <div style="flex:1;display:flex;justify-content:center">
+            <div class="dots">
+              <i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+          </div>
+          <button class="btn btn--ghost" disabled>上一步</button>
+          <button class="btn btn--primary">下一步</button>
+        </div>
+      </div>
+
+      <div class="cap" style="margin-top:22px">
+        <b>第 8 页的底栏</b> 圆点走到最后一颗，「上一步」可用，主按钮变「完成」；
+        随手勾上「以后不再自动弹出」就是最后一个状态
+      </div>
+      <div class="dlg dlg--auto" style="width:960px">
+        <div class="dlg__foot" style="padding:10px 16px">
+          <div class="cbwrap">
+            <span class="cb cb--on">✓</span>
+            <span>以后不再自动弹出</span>
+          </div>
+          <div style="flex:1;display:flex;justify-content:center">
+            <div class="dots">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="on"></i>
+            </div>
+          </div>
+          <button class="btn btn--ghost">上一步</button>
+          <button class="btn btn--primary">完成</button>
+        </div>
+      </div>
+
+      <div class="cap" style="margin-top:22px"><b>8 页说明文字</b>（逐字取自 <code>guideStep1</code>…<code>guideStep8</code>）</div>
+      <div class="pagelist">
+        <div><span class="n">1</span>在源文件中点击添加按钮，添加视频文件</div>
+        <div><span class="n">2</span>播放视频文件过程中，点击标记按钮，记录精彩时刻</div>
+        <div><span class="n">3</span>添加文字描述用于转场，勾选放大选择框如果需要放大远端画面</div>
+        <div><span class="n">4</span>添加个性片头或者使用内置片头</div>
+        <div><span class="n">5</span>添加个性转场或者使用内置转场</div>
+        <div><span class="n">6</span>添加个性片尾或者使用内置片尾</div>
+        <div><span class="n">7</span>添加个性背景音乐或者使用内置背景音乐</div>
+        <div><span class="n">8</span>使用「我要」→「制作」，选择输出分辨率，等待成片完成</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

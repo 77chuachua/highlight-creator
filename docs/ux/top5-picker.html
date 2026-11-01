@@ -8,15 +8,22 @@
 <body>
 
 <nav class="pagenav">
-  <a href="index.html">总览</a><span class="sep">/</span>
+  <a href="index.html">总览</a>
+  <a href="main-window.html">主窗口</a>
+  <a href="template-editor.html">模板</a>
+  <a href="marking-dialogs.html">标注</a>
+  <a href="phone-marking.html">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
   <a href="top5-picker.html" class="on">五佳球·选择</a>
   <a href="top5-editor.html">解说</a>
   <a href="top5-generated.html">已生成</a>
   <span class="sep">/</span>
   <a href="dialogs.html">对话框</a>
   <a href="studio.html">语音工作室</a>
+  <a href="ai-marking.html">AI 打点</a>
   <span class="spacer"></span>
-  <span class="tag">静态原型 · 1140×720</span>
+  <span class="tag">静态原型 · 2026-11</span>
 </nav>
 
 <div class="stage stage--top">
@@ -24,7 +31,11 @@
     <div class="note">
       <b>步骤 1 · 选择</b> —— <code>top5_dialog.dart → _buildPicker()</code>。
       上排是层级（周/月/年）与类型（进球/扑救）、周期标签（<b>按项目日期算，不按系统时间</b>）、已选计数；下面左右 3:2 分栏，
-      左为候选池（点击加入名次），右为名次槽位。达到 5 个后其余行变成禁止图标。
+      左为候选池（点击加入名次），右为名次槽位。达到 5 个后其余行变成禁止行。
+      <br><b>成片回填</b>：打开对话框或切换层级/类型时，先看 <code>5best_clips</code> 里有没有本周期的成片
+      （<code>week_2026-W43_goal_1.mp4</code> …）。有就直接填满名次列表并显示绿色
+      <code>已恢复 2026-W43 的成片(5 条)</code> 标签；解说词从 <code>top5.json</code> 一并回填，
+      进入步骤 2 就能看到，不需要重新挑一遍（渲染中途失败也不会丢）。
     </div>
 
     <div class="dlg">
@@ -53,6 +64,7 @@
             <span class="on">进球</span><span>扑救</span>
           </div>
           <span class="faint" style="font-size:12px" title="周期按项目日期计算">2026-W43 · 本周</span>
+          <span class="chip" style="color:#b7f0d0;border-color:rgba(78,201,160,.45);background:rgba(78,201,160,.12);padding:3px 10px;font-size:11px">已恢复 2026-W43 的成片(5 条)</span>
           <div style="flex:1"></div>
           <span class="chip" style="color:#8fe3c4;border-color:rgba(78,201,160,.4);background:rgba(78,201,160,.14);padding:3px 10px;font-size:12px">已选 5 / 5</span>
         </div>

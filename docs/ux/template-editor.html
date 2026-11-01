@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 模板编辑与预览</title>
+<link rel="stylesheet" href="assets/proto.css">
+<style>
+  .stack { width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 44px; }
+  .grow { flex: 1; }
+  .frame__cap {
+    font-size: 12px; color: var(--faint); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .frame__cap b { color: var(--text); font-weight: 600; }
+  .frame__cap code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: 11px; color: var(--gold);
+  }
+
+  /* ------------------------------------------------ 1. template editor dialog */
+  .te__body { flex: 1; min-height: 0; display: flex; }
+  .te__rail { width: 320px; flex: none; padding: 16px; overflow: hidden; }
+  .vdiv { width: 1px; flex: none; background: var(--line); }
+  .te__preview {
+    flex: 1; min-width: 0; min-height: 0; padding: 16px;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .sect-label { font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, .7); }
+  .mt-sm { margin-top: 8px; }
+  .mt-md { margin-top: 12px; }
+  .mt-lg { margin-top: 20px; }
+
+  .te__seg { display: flex; width: 100%; margin-top: 8px; }
+  .te__seg span { flex: 1; text-align: center; padding: 5px 0; }
+
+  .tcards { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .tcard {
+    width: 90px; padding: 4px; border-radius: 6px;
+    background: #202027; border: 1px solid rgba(255, 255, 255, .12);
+  }
+  .tcard.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .tcard__thumb {
+    height: 45px; border-radius: 4px; background: #000;
+    display: grid; place-items: center; font-size: 17px; color: rgba(255, 255, 255, .38);
+  }
+  .tcard__name {
+    font-size: 10px; margin-top: 3px; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .field {
+    flex: 1; min-width: 0; padding: 3px 9px 5px;
+    border: 1px solid rgba(255, 255, 255, .18); border-radius: 6px;
+    background: rgba(0, 0, 0, .25);
+  }
+  .field__label { display: block; font-size: 10px; line-height: 1.3; color: var(--faint); }
+  .field__value { display: block; font-size: 12px; line-height: 1.5; }
+  .te__textrow { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
+  .te__select { width: 100%; min-width: 0; margin-top: 12px; }
+  .te__wide { width: 100%; justify-content: center; margin-top: 8px; }
+
+  .slide-row { display: flex; align-items: center; gap: 6px; margin-top: 16px; }
+  .slide-row .lab { font-size: 13px; flex: none; }
+  .slide-row .num { font-size: 12px; width: 48px; flex: none; text-align: right; }
+  .slider { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, .18); position: relative; }
+  .slider__fill { position: absolute; left: 0; top: 0; height: 100%; width: 40%; border-radius: 2px; background: var(--gold); }
+  .slider__knob {
+    position: absolute; top: 50%; left: 40%; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--gold); transform: translate(-50%, -50%);
+  }
+
+  .swatches { display: flex; gap: 8px; margin-top: 6px; }
+  .swatchdot {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, .24);
+  }
+  .swatchdot.on { box-shadow: 0 0 0 2px var(--gold); border-color: transparent; }
+
+  .radios { display: flex; margin-top: 4px; }
+  .radio { display: flex; align-items: center; gap: 6px; font-size: 12px; flex: 1; color: var(--text); }
+  .radio__dot {
+    width: 16px; height: 16px; border-radius: 50%; flex: none;
+    border: 1.5px solid rgba(255, 255, 255, .5); display: grid; place-items: center;
+  }
+  .radio__dot.on { border-color: var(--gold); }
+  .radio__dot.on::after {
+    content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--gold);
+  }
+
+  .te__screen {
+    flex: 1; min-height: 0; margin-top: 8px; border-radius: 8px;
+    background: #000; display: grid; place-items: center; overflow: hidden;
+    position: relative;
+  }
+  .te__overlay {
+    font-size: 34px; font-weight: 700; color: #f5c42d; letter-spacing: 2px;
+    text-shadow: 0 3px 14px rgba(0, 0, 0, .7);
+  }
+  .te__bar {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 8px; font-size: 12px; color: var(--faint);
+  }
+
+  /* ------------------------------------------------------- 2. sidebar panel */
+  .rails { display: flex; gap: 18px; align-items: flex-start; justify-content: center; }
+  .rail {
+    width: 320px; flex: none; overflow: hidden;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .rail__head {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; background: #22222a; font-size: 13px; font-weight: 600;
+  }
+  .rail__arrow { font-size: 11px; color: rgba(255, 255, 255, .54); flex: none; }
+  .rail__icon { font-size: 13px; flex: none; }
+  .rail__title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rail__ico { font-size: 13px; color: rgba(255, 255, 255, .6); padding: 0 3px; flex: none; }
+  .rail__body { padding: 8px; background: #17171c; border-bottom: 1px solid rgba(255, 255, 255, .12); }
+  .trow { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 4px; }
+  .trow.on { background: rgba(242, 185, 51, .12); }
+  .trow__radio { font-size: 11px; color: rgba(255, 255, 255, .38); flex: none; }
+  .trow.on .trow__radio { color: var(--gold); }
+  .trow__type { font-size: 12px; color: var(--gold); flex: none; }
+  .trow__name {
+    flex: 1; min-width: 0; font-size: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .trow__act { font-size: 11px; color: rgba(255, 255, 255, .55); flex: none; padding: 0 3px; }
+  .trow__act.del { color: #f04a4a; }
+  .rail__empty { font-size: 11px; color: var(--faint); padding: 2px 0; }
+
+  /* ------------------------------------------------ 3. preview & make dialog */
+  .pv__body { flex: 1; min-height: 0; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .pv__head { display: flex; align-items: center; gap: 8px; padding: 16px 20px 12px; }
+  .pv__head .title { font-size: 18px; font-weight: 700; }
+  .pv__cards { height: 400px; display: flex; align-items: stretch; gap: 8px; flex: none; }
+  .pv__cards .chev { align-self: center; }
+  .pvcard {
+    flex: 1; min-width: 0; padding: 12px; display: flex; flex-direction: column;
+    background: #1b1b20; border: 1px solid var(--line-soft); border-radius: 10px;
+  }
+  .pvcard__head { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; flex: none; }
+  .pvcard__edit { margin-left: auto; font-size: 12px; color: rgba(255, 255, 255, .54); }
+  .pvcard__video {
+    flex: 1; min-height: 0; margin: 8px 0; border-radius: 6px;
+    background: #000; display: grid; place-items: center; overflow: hidden; position: relative;
+  }
+  .pvcard__name {
+    font-size: 11px; color: rgba(255, 255, 255, .7);
+    display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden;
+  }
+  .pvcard__name--dd .caret { font-size: 9px; color: rgba(255, 255, 255, .54); }
+  .pvcard__title { font-size: 10px; color: rgba(255, 255, 255, .54); margin-top: 2px; }
+  .streak {
+    position: absolute; width: 150%; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(242, 185, 51, .75), transparent);
+  }
+  .streak.a { transform: rotate(-18deg); top: 38%; }
+  .streak.b { transform: rotate(-18deg); top: 58%; opacity: .5; }
+  .glow {
+    width: 120px; height: 120px; border-radius: 50%;
+    border: 2px solid rgba(242, 185, 51, .7);
+    box-shadow: 0 0 60px rgba(242, 185, 51, .35) inset, 0 0 30px rgba(242, 185, 51, .2);
+  }
+
+  .pv__res { background: #1b1b20; border: 1px solid var(--line-soft); border-radius: 10px; padding: 12px; flex: none; }
+  .pv__reslabel { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .rchips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rchip {
+    font-size: 12px; padding: 5px 14px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted);
+  }
+  .rchip.on {
+    background: rgba(242, 185, 51, .16); border-color: rgba(242, 185, 51, .45);
+    color: var(--gold); font-weight: 600;
+  }
+  .rchip.off { opacity: .4; }
+  .pv__sum { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255, 255, 255, .7); flex: none; }
+  .pv__confirm { background: #388e3c; border-color: #388e3c; color: #fff; font-weight: 600; }
+
+  /* modal frames (render / missing templates), same shell as dialogs.html */
+  .modal {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: 0 22px 60px rgba(0, 0, 0, .6);
+    padding: 20px 22px 14px;
+  }
+  .modal__title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; margin-bottom: 12px;
+  }
+  .modal__hint { font-size: 12px; line-height: 1.7; color: var(--muted); }
+  .modal__actions {
+    display: flex; align-items: center; gap: 4px; margin-top: 18px;
+    justify-content: flex-end;
+  }
+  .states { display: flex; gap: 18px; align-items: flex-start; margin-top: 18px; }
+  .ring {
+    width: 90px; height: 90px; border-radius: 50%; margin: 8px auto 14px;
+    display: grid; place-items: center; position: relative;
+    background: conic-gradient(#f2b933 0 42%, rgba(255, 255, 255, .12) 42% 100%);
+  }
+  .ring::before {
+    content: ""; position: absolute; inset: 4px; border-radius: 50%;
+    background: var(--panel);
+  }
+  .ring span { position: relative; font-size: 20px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a>
+  <a href="main-window.html">主窗口</a>
+  <a href="template-editor.html" class="on">模板</a>
+  <a href="marking-dialogs.html">标注</a>
+  <a href="phone-marking.html">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <a href="ai-marking.html">AI 打点</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 2026-11</span>
+</nav>
+
+<div class="stage stage--top">
+  <div class="stack">
+
+    <!-- ============================================ 1. template editor dialog -->
+    <div>
+      <div class="note">
+        <b>模板编辑器对话框 · 开场</b> ——
+        <code>template_editor_dialog.dart → build() / _buildTitleBar() / _buildLeftRail() / _buildPreview() / _buildActions()</code>。
+        对话框 <code>1100×680</code>（不是 1140×720），左栏固定 <code>320</code>（padding 16）+ 1px 竖分隔线 + 右侧实时预览。
+        左栏自上而下：<b>模板</b>分段按钮（<code>TemplateCategory.values</code> 只有 <b>开场 / 转场 / 结尾</b> 三段，
+        <code>showSelectedIcon:false</code> 所以选中段没有勾）、模板卡片（宽 <code>90</code>、缩略图 <code>80×45</code>，
+        选中项 <code>2px</code> 主色描边，内置卡片是 🎞、自己加的是 👤、在线目录的是 ☁）、
+        <b>字体</b>：预览文字输入框 + 眼睛按钮、字体下拉（默认 <code>Microsoft YaHei (微软雅黑)</code>）、
+        <code>浏览字体文件…</code>、字号 <code>16–96</code>（默认 48）、8 个颜色圆点（默认 <code>#F5C42D</code>）、
+        位置 <b>顶部 / 居中 / 底部</b>（默认居中）。
+        <br><b>没有「确定 / 取消」，也没有「预览」按钮</b>：参数改动 <code>600/800ms</code> 防抖后立即写库，
+        预览就在右侧那块，关闭即生效；底部只有左 <b>恢复默认</b>、右 <b>关闭</b>。
+        <br><b>背景音乐没有编辑页</b>：<code>TemplateCategory</code> 只有三个值，背景音乐只在右栏面板里加/删（见第 2 节）。
+        改任何参数后 <code>400ms</code> 重新渲染预览：渲染中盖半透明黑 + 顶部 3px 进度条 + 居中的
+        <code>准备模板底片… / 渲染文字预览…</code> 与百分比；失败时预览区显示 <code>预览失败</code> + stderr。
+        在线目录拉不到时，卡片流末尾会多一张 90px 的 <code>无在线模板</code> / <code>离线缓存</code> 说明卡（本图未画）。
+      </div>
+
+      <div class="frame__cap">
+        <b>模板编辑器 · 开场 / Green</b>
+        <code>Dialog 1100×680</code>
+        <span>· 左栏 320：分段（三段）→ 模板卡片 → 字体；右侧实时预览；底部 恢复默认 / 关闭</span>
+      </div>
+
+      <div class="dlg" style="width:1100px;height:680px">
+        <div class="dlg__head" style="height:48px;padding:0 16px">
+          <span style="font-size:15px">⚙</span>
+          <span class="title">模板编辑和预览</span>
+          <div class="grow"></div>
+          <button class="iconbtn" title="关闭">✕</button>
+        </div>
+        <div class="divider"></div>
+
+        <div class="te__body">
+          <!-- left rail: 320 -->
+          <div class="te__rail">
+            <div class="sect-label">模板</div>
+
+            <div class="seg te__seg">
+              <span class="on">开场</span><span>转场</span><span>结尾</span>
+            </div>
+
+            <div class="tcards">
+              <div class="tcard on">
+                <div class="tcard__thumb">🎞</div>
+                <div class="tcard__name">Green</div>
+              </div>
+              <div class="tcard">
+                <div class="tcard__thumb">🎞</div>
+                <div class="tcard__name">Nocturne</div>
+              </div>
+              <div class="tcard">
+                <div class="tcard__thumb">👤</div>
+                <div class="tcard__name">my_intro.mp4</div>
+              </div>
+            </div>
+
+            <div class="sect-label mt-lg">字体</div>
+
+            <div class="te__textrow">
+              <div class="field">
+                <span class="field__label">预览文字</span>
+                <span class="field__value">精彩集锦</span>
+              </div>
+              <button class="iconbtn" title="隐藏文字">👁</button>
+            </div>
+
+            <div class="select te__select">
+              <span>Microsoft YaHei (微软雅黑)</span>
+              <span class="caret">▼</span>
+            </div>
+
+            <button class="btn te__wide">📂 浏览字体文件…</button>
+
+            <div class="slide-row">
+              <span class="lab">字号</span>
+              <div class="slider">
+                <div class="slider__fill"></div>
+                <div class="slider__knob"></div>
+              </div>
+              <span class="num">48 px</span>
+            </div>
+
+            <div style="font-size:13px;margin-top:16px">颜色</div>
+            <div class="swatches">
+              <div class="swatchdot on" style="background:#f5c42d" title="#F5C42D"></div>
+              <div class="swatchdot" style="background:#ffffff"></div>
+              <div class="swatchdot" style="background:#69f0ae"></div>
+              <div class="swatchdot" style="background:#42a5f5"></div>
+              <div class="swatchdot" style="background:#ef5350"></div>
+              <div class="swatchdot" style="background:#ab47bc"></div>
+              <div class="swatchdot" style="background:#ffa726"></div>
+              <div class="swatchdot" style="background:#26c6da"></div>
+            </div>
+
+            <div style="font-size:13px;margin-top:16px">位置</div>
+            <div class="radios">
+              <div class="radio"><span class="radio__dot"></span>顶部</div>
+              <div class="radio"><span class="radio__dot on"></span>居中</div>
+              <div class="radio"><span class="radio__dot"></span>底部</div>
+            </div>
+          </div>
+
+          <div class="vdiv"></div>
+
+          <!-- right: live preview -->
+          <div class="te__preview">
+            <div class="sect-label">实时预览</div>
+            <div class="te__screen">
+              <span class="te__overlay">精彩集锦</span>
+            </div>
+            <div class="te__bar">
+              <button class="iconbtn" title="取消静音">🔇</button>
+              <span>循环播放中</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="dlg__foot" style="height:56px">
+          <button class="btn">↺ 恢复默认</button>
+          <div class="grow"></div>
+          <button class="btn btn--ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================================================== 2. sidebar panel -->
+    <div>
+      <div class="note">
+        <b>模板面板（主窗口右侧 320 宽那一栏）</b> ——
+        <code>template_panel.dart → build()</code> + <code>collapsible_panel.dart</code>。
+        宽 <code>320</code>，四个面板依次是 <b>开场模板 / 转场模板 / 结尾模板 / 背景音乐</b>，中间隔 <code>4px</code>。
+        标题栏（padding 6/8）：左侧 ▸ 展开后转 90° 变 ▾，图标（开场 🎞 蓝、转场 ✨ 绿、结尾 🏁 红、背景音乐 🎵 橙），
+        标题，右侧只有两个图标按钮：<b>⚙ 预览</b>（tooltip「预览」，打开编辑器；背景音乐没有这个按钮）
+        和 <b>＋ 添加模板</b>。
+        行内才是剩下的两个动作：<b>✎ 编辑标题</b>（仅开场 / 结尾，弹框标题「编辑标题」，空输入回落成「精彩集锦」）、
+        <b>▶ 预览</b>（背景音乐没有，点它是弹播放器；开场 / 结尾有标题时先叠字再播）、
+        <b>🗑 从列表移除</b>（红色，二次确认「删除 {name}？」）。
+        行内左边是实心 / 空心单选圈 + 类型图标，整行点击即选中，选中行底色 primaryContainer 12%。
+        空状态只有一行 <b>未配置模板。</b>（11px、outline 色），<b>没有</b>按钮 —— 入口在标题栏的 ＋；
+        有模板但没选中时，打开面板会自动选中第一条。
+        背景音乐面板点行不播视频，弹一个只有「背景音乐文件: 文件名」和「关闭」的提示框，所以它没有 ▶ / ✎。
+      </div>
+
+      <div class="rails">
+        <!-- configured -->
+        <div>
+          <div class="frame__cap"><b>有模板（Green 已选中）</b></div>
+          <div class="rail">
+            <div class="rail__head">
+              <span class="rail__arrow">▾</span>
+              <span class="rail__icon">🎞</span>
+              <span class="rail__title">开场模板</span>
+              <span class="rail__ico" title="预览">⚙</span>
+              <span class="rail__ico" title="添加模板">＋</span>
+            </div>
+            <div class="rail__body">
+              <div class="trow on">
+                <span class="trow__radio">◉</span>
+                <span class="trow__type">🎞</span>
+                <span class="trow__name">Startup Green</span>
+                <span class="trow__act" title="编辑标题">✎</span>
+                <span class="trow__act" title="预览">▶</span>
+                <span class="trow__act del" title="从列表移除">🗑</span>
+              </div>
+              <div class="trow">
+                <span class="trow__radio">○</span>
+                <span class="trow__type">🎞</span>
+                <span class="trow__name">Startup Nocturne</span>
+                <span class="trow__act" title="编辑标题">✎</span>
+                <span class="trow__act" title="预览">▶</span>
+                <span class="trow__act del" title="从列表移除">🗑</span>
+              </div>
+              <div class="trow">
+                <span class="trow__radio">○</span>
+                <span class="trow__type">🎞</span>
+                <span class="trow__name">my_intro.mp4</span>
+                <span class="trow__act" title="编辑标题">✎</span>
+                <span class="trow__act" title="预览">▶</span>
+                <span class="trow__act del" title="从列表移除">🗑</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- empty -->
+        <div>
+          <div class="frame__cap"><b>空状态</b></div>
+          <div class="rail">
+            <div class="rail__head">
+              <span class="rail__arrow">▾</span>
+              <span class="rail__icon">🎞</span>
+              <span class="rail__title">开场模板</span>
+              <span class="rail__ico" title="预览">⚙</span>
+              <span class="rail__ico" title="添加模板">＋</span>
+            </div>
+            <div class="rail__body">
+              <div class="rail__empty">未配置模板。</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- background music -->
+        <div>
+          <div class="frame__cap"><b>背景音乐（无编辑 / 无预览）</b></div>
+          <div class="rail">
+            <div class="rail__head">
+              <span class="rail__arrow">▾</span>
+              <span class="rail__icon">🎵</span>
+              <span class="rail__title">背景音乐</span>
+              <span class="rail__ico" title="添加模板">＋</span>
+            </div>
+            <div class="rail__body">
+              <div class="trow on">
+                <span class="trow__radio">◉</span>
+                <span class="trow__type">🎵</span>
+                <span class="trow__name">summer_bgm.mp3</span>
+                <span class="trow__act del" title="从列表移除">🗑</span>
+              </div>
+              <div class="trow">
+                <span class="trow__radio">○</span>
+                <span class="trow__type">🎵</span>
+                <span class="trow__name">stadium_loop.mp3</span>
+                <span class="trow__act del" title="从列表移除">🗑</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =================================================== 3. preview dialog -->
+    <div>
+      <div class="note">
+        <b>预览与确认（Make 前的预览）</b> ——
+        <code>preview_dialog.dart → build() / _buildTemplatePreviews() / _buildTemplateCard() / _buildResolutionPicker() / _buildTimeslotSummary()</code>。
+        宽最多 <code>1400</code>、高最多 <code>1100</code>，内容宽 <code>1140</code> 左右。
+        三张卡（开场 / 转场 / 结尾）用 <code>›</code> 连起来、区域高 <code>400</code>：卡头是类型图标 + 标题 + ✎
+        （tooltip「编辑模板」，就地打开模板编辑器，关掉后先 flush 防抖写库再重载预览）；
+        中间黑底循环播放；名字行在模板多于一条时是可点的下拉（tooltip「选择模板」），否则是纯文本；
+        开场 / 转场下面再显示一行标题，结尾不显示。
+        下面 <b>输出分辨率</b>：480P / 720P（默认）/ 1080P / 4K，源分辨率不够的项禁用（hover 提示「不可用（高于源分辨率）」），
+        再下面是「N 个时间片段 / 总时长: m:ss」。
+        底部 <b>取消</b> 与 <b>✓ 确认并制作</b>（绿底 <code>#388E3C</code>），确认返回 (width, height) 给 Make。
+        <br><b>本对话框里没有进度条，也没有错误条</b>：真正开始渲染后是另一个 AlertDialog（见下左，<code>control_panel.dart</code>），
+        失败时它先关掉再弹红色 snackbar「制作失败: …」；模板文件缺失则在渲染前先弹「缺少模板文件」（见下右）。
+      </div>
+
+      <div class="frame__cap">
+        <b>预览与确认 · Make 前</b>
+        <code>Dialog 最大 1400×1100</code>
+        <span>· 三张模板卡 → 输出分辨率 → 时间片段统计；底部 取消 / 确认并制作</span>
+      </div>
+
+      <div class="dlg" style="width:1140px;height:700px">
+        <div class="pv__head">
+          <span style="font-size:16px">👁</span>
+          <span class="title">预览与确认</span>
+          <div class="grow"></div>
+          <button class="iconbtn" title="关闭">✕</button>
+        </div>
+        <div class="divider"></div>
+
+        <div class="pv__body">
+          <div class="pv__cards">
+            <div class="pvcard">
+              <div class="pvcard__head">
+                <span>▶</span><span>开场</span>
+                <span class="pvcard__edit" title="编辑模板">✎</span>
+              </div>
+              <div class="pvcard__video">
+                <span style="font-size:26px;font-weight:700;color:#f5c42d;letter-spacing:2px">精彩集锦</span>
+              </div>
+              <div class="pvcard__name pvcard__name--dd" title="选择模板">Startup Green <span class="caret">▾</span></div>
+              <div class="pvcard__title">精彩集锦</div>
+            </div>
+
+            <div class="chev">›</div>
+
+            <div class="pvcard">
+              <div class="pvcard__head">
+                <span>⇄</span><span>转场</span>
+                <span class="pvcard__edit" title="编辑模板">✎</span>
+              </div>
+              <div class="pvcard__video">
+                <div class="streak a"></div>
+                <div class="streak b"></div>
+              </div>
+              <div class="pvcard__name pvcard__name--dd" title="选择模板">Transition Green <span class="caret">▾</span></div>
+            </div>
+
+            <div class="chev">›</div>
+
+            <div class="pvcard">
+              <div class="pvcard__head">
+                <span>⏹</span><span>结尾</span>
+                <span class="pvcard__edit" title="编辑模板">✎</span>
+              </div>
+              <div class="pvcard__video">
+                <div class="glow"></div>
+              </div>
+              <div class="pvcard__name pvcard__name--dd" title="选择模板">Ending Green Theme <span class="caret">▾</span></div>
+            </div>
+          </div>
+
+          <div class="pv__res">
+            <div class="pv__reslabel">输出分辨率</div>
+            <div class="rchips">
+              <span class="rchip">480P</span>
+              <span class="rchip on">720P</span>
+              <span class="rchip">1080P</span>
+              <span class="rchip off" title="不可用（高于源分辨率）">4K</span>
+            </div>
+          </div>
+
+          <div class="pv__sum">
+            <span>📋</span><span>6 个时间片段</span>
+            <span style="width:10px"></span>
+            <span>⏱</span><span>总时长: 1:24</span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="dlg__foot">
+          <div class="grow"></div>
+          <button class="btn btn--ghost">取消</button>
+          <button class="btn pv__confirm">✓ 确认并制作</button>
+        </div>
+      </div>
+
+      <!-- render + error states -->
+      <div class="states">
+        <div>
+          <div class="frame__cap">
+            <b>生成中</b>
+            <code>control_panel.dart → _make()</code>
+            <span>· 渲染一开始就弹的 AlertDialog（可点外面关掉，渲染继续）</span>
+          </div>
+          <div class="modal" style="width:420px">
+            <div class="modal__title">正在渲染…</div>
+            <div class="ring"><span>42%</span></div>
+            <div class="modal__hint" style="text-align:center">正在创建精彩集锦视频，请稍候</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="frame__cap">
+            <b>出错：缺少模板文件</b>
+            <code>control_panel.dart → _make()</code>
+            <span>· 渲染前逐项检查，任一缺失就拦下</span>
+          </div>
+          <div class="modal" style="width:600px">
+            <div class="modal__title">缺少模板文件</div>
+            <div class="error-strip" style="margin-top:0">
+              <span class="ico">⚠</span>
+              <span class="grow">
+                <b>模板文件未找到:</b><br>
+                开场模板 — C:\Users\77chu\HighlightCreator\templates\startup_green.mp4<br>
+                结尾模板: 未配置模板。
+              </span>
+            </div>
+            <div class="modal__hint" style="margin-top:10px">
+              每一项一行：路径存在但文件不在时是「类型 — 路径」，没选模板时是「类型: 未配置模板。」。
+            </div>
+            <div class="modal__actions">
+              <button class="btn btn--primary">确定</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

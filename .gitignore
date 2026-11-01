@@ -3,7 +3,9 @@
 .packages
 build/
 *.iml
+# Flutter apps commit their dependency lock; everything else stays out.
 *.lock
+!app/pubspec.lock
 !.vscode/
 # Miscellaneous
 app/*.class
@@ -95,6 +97,8 @@ __cmake_systeminformation/
 # Testing and Temp
 temp/
 app/temp/
+# Internal agent notes: local working instructions, not published.
+docs/agent_notes.md
 # Portable binaries stay out of git; the voice-cloning installer is source.
 tools/*
 !tools/voice_clone/

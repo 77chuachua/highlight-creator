@@ -47,6 +47,50 @@ git add app/lib/data/database/database.g.dart
   的测试在 CI 上全部编译失败（2026-10-11 那次 13 个失败就是这个原因）。
   注意 `build_runner build --delete-conflicting-outputs` 会先删掉旧的生成物再重写，中途被打断
   就会把文件弄丢 —— 本地生成前确认命令能跑完。
+- **不要给参数/变量起自动变量名**：PowerShell 变量名不区分大小写，且 `$Args`、`$Input`、
+  `$Error`、`$Out`、`$Host` 等是自动变量——声明同名参数会被静默覆盖。本仓库踩过两次：
+  `$Out` 参数与 `$out` 局部变量冲突导致「路径太长」；`$Args` 冲突导致测试路径丢失、
+  `flutter test` 无参跑了整个 `test/` 目录（10 个 tester、卡 900 秒）。写 PowerShell 时
+  先检查参数名是否在自动变量表里。
+- **失败必须留可读痕迹，先设计再写功能**：任何后台任务、服务、长流程，先决定「失败写进哪里」。
+  控制台输出不算日志（窗口一关全丢）。启动子进程必须 `> out 2> err` 重定向；用隐藏窗口
+  启动会吞掉全部错误。服务改完要用版本自述确认（如 `/ping` 返回 `mode:serial`），
+  否则会对着旧进程调试。
+- **一次性产出的功能必须同批交付日志**：分析类功能跑完只在内存里 = 无法复盘，等于没法迭代。
+  日志统一 `[功能] key=value`，可 grep、可统计，例如
+  `[ai-marking] summary candidates=46 highlight=4 failed=0 http=200`。
+- **改完必须验证「是不是新版本在跑」**：不能只看「编译成功」或「服务在运行」。Flutter 看
+  `build\windows\x64\runner\Debug\data\flutter_assets\kernel_blob.bin` 的修改时间
+  （`exe` 的时间不可信）；自建服务看 `/ping` 的版本字段。曾连续两轮对着旧 exe 排查。
+
+## 排查纪律
+
+- **先取证据再谈改法**：出现异常时第一步是取出日志/产物（`service.log`、`results\*.json.err`、
+  `%USERPROFILE%\HighlightCreator\logs\error-*.log`），不是猜原因。没有证据就明说
+  「我需要 X 才能判断」。
+- **结论必须有数字**：「召回 89%、判定正确 8%」而不是「效果好多了」。没有 ground truth
+  时不做精度结论。
+- **提前定停止条件**：例如「三次迭代指标不提升就停」。没有预设就会一直改下去。
+- **区分跑过/解析过/未验证**：报告里必须写清哪些是真编译执行过的、哪些只做了语法解析、
+  哪些完全没验证。不允许用「已完成」覆盖不确定。
+- **外部事实查文档**：模型名、API 字段、参数拼写一律查官方文档。曾臆造
+  `deepseek-v4.2-flash`（正确是 `deepseek-flash`）。
+
+## 工具链
+
+- **本机编译走外部通道**：agent 的沙箱禁止 spawn 子进程，`flutter build/test` 会失败。
+  用 `C:\Code\localHttpServer`（先双击 `start-service.bat`）：
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File C:\Code\localHttpServer\dart\build_client.ps1 -Action build
+  powershell -ExecutionPolicy Bypass -File C:\Code\localHttpServer\dart\build_client.ps1 -Action test  -Path test/services/foo_test.dart
+  powershell -ExecutionPolicy Bypass -File C:\Code\localHttpServer\dart\build_client.ps1 -Action testall -Path test/services
+  ```
+  不要再手工造 ffmpeg/showinfo/MD5 证据来代替编译器——那是每次 15–20 分钟的开销。
+- **本机工具一律串行阻塞**：一次请求跑一个任务。job id + 轮询 + PID 追踪那套会引入
+  「客户端超时但任务继续跑」的孤儿进程（实测累积到几十个 dart/ffmpeg）。
+- **一行改动自己做**，不要派给 subagent（2 分钟 vs 20 分钟）；**诊断与执行分开派**；
+  任务书里给行号、函数名、目标字符串等精确锚点；新 subagent 先读 `docs/agent_notes.md`。
+
 
 ## Architecture Overview
 

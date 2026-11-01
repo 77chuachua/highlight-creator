@@ -62,6 +62,12 @@ SAMPLE_TEXT = {
     "en": "What a strike - the keeper had no chance at all.",
 }
 
+# The engine reseeds before every request, so the same seed + text + reference
+# gives the same take. numpy.random.seed caps the range at 2**32, so that is the
+# range the page offers (the worker passes the value straight through).
+DEFAULT_SEED = 42
+SEED_MAX = 2 ** 32 - 1
+
 # Our own messages travel as codes; the page owns the wording. Raw engine
 # errors (libsndfile, torch) stay verbatim: they are diagnostics, not UI.
 MESSAGES = {
@@ -90,6 +96,8 @@ MESSAGES = {
     "pack_no_reference": ("这个语音包里没有 reference.wav",
                           "That pack has no reference.wav"),
     "no_audio_yet": ("还没有音频", "No audio yet"),
+    "seed_invalid": ("seed 必须是 0 – {high} 之间的整数",
+                     "seed must be an integer between 0 and {high}"),
 }
 
 _lang = "zh"
@@ -368,9 +376,31 @@ def _reset_worker():
             pass
 
 
+def _seed_or_none(value):
+    """The seed the page asked for, as (seed, error).
+
+    An empty field means the default, which is what the app uses when it does
+    not audition first.
+    """
+    if value is None or value == "":
+        return DEFAULT_SEED, ""
+    try:
+        # A fractional seed would otherwise be truncated, and the take the user
+        # hears would not be the one that seed names.
+        if isinstance(value, bool) or (
+                isinstance(value, float) and not value.is_integer()):
+            raise ValueError
+        seed = int(value)
+    except (TypeError, ValueError):
+        return None, msg("seed_invalid", high=SEED_MAX)
+    if seed < 0 or seed > SEED_MAX:
+        return None, msg("seed_invalid", high=SEED_MAX)
+    return seed, ""
+
+
 def synthesize(text: str, reference: str, style: str | None = None,
                speed: float = 1.0, instruct: str = "",
-               prompt_text: str = "") -> dict:
+               prompt_text: str = "", seed: int | None = None) -> dict:
     process = _worker_start()
     if process is None:
         return {"ok": False,
@@ -390,6 +420,10 @@ def synthesize(text: str, reference: str, style: str | None = None,
         request["prosody_reference"] = style
     if instruct.strip():
         request["instruct"] = instruct.strip()
+    if seed is not None:
+        # Re-samples the same sentence: a new seed is a new take, the same seed
+        # gives the same one back.
+        request["seed"] = int(seed)
     try:
         with _worker_lock:
             process.stdin.write(
@@ -667,14 +701,23 @@ class Handler(BaseHTTPRequestHandler):
                 return
             style, notice = _style_or_none()
             text = (payload.get("text") or "").strip() or SAMPLE_TEXT
+            seed, seed_error = _seed_or_none(payload.get("seed"))
+            if seed_error:
+                self._json({"ok": False, "error": seed_error})
+                return
             reply = synthesize(
                 text, take, style,
                 speed=payload.get("speed", 1.0),
                 instruct=payload.get("instruct", ""),
                 prompt_text=payload.get("promptText", ""),
+                seed=seed,
             )
             if notice:
                 reply["notice"] = notice
+            # Echo what was used: the page shows it so the same take can be
+            # asked for again later.
+            if reply.get("ok"):
+                reply["seed"] = seed
             self._json(reply)
             return
         if route == "/api/save":

@@ -1,7 +1,7 @@
 name: highlight_creator
 description: Cross-platform video highlight creator with effects.
 publish_to: 'none'
-version: 0.4.0+0
+version: 0.4.1+0
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -41,6 +41,9 @@ dependencies:
 
   # Utilities
   uuid: ^3.0.7
+
+  # QR code for phone marking (pure Dart, drawn by Flutter, no native code).
+  qr_flutter: ^4.1.0
 
   # Window management (OS close interception)
   window_manager: ^0.4.2

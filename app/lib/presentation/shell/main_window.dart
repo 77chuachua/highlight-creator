@@ -31,6 +31,7 @@ import 'package:highlight_creator/services/template_generator_service.dart';
 import 'package:highlight_creator/services/store_update_service.dart';
 import 'package:highlight_creator/services/error_logger.dart';
 import 'package:highlight_creator/services/local_voice_service.dart';
+import 'package:highlight_creator/services/proxy_cache.dart';
 import 'package:highlight_creator/data/settings_service.dart';
 import 'package:highlight_creator/domain/entities/video_source.dart';
 
@@ -74,6 +75,8 @@ class _MainWindowState extends ConsumerState<MainWindow> with wm.WindowListener 
     if (_closing) return;
     // The clone worker holds ~4 GB of VRAM; it must not outlive the app.
     LocalVoiceService.shutdown();
+    // A proxy transcode is a real ffmpeg child; exit(0) would orphan it.
+    ProxyCache.shutdownAll();
     final state = ref.read(recordProvider);
     if (!state.isDirty) {
       exit(0);

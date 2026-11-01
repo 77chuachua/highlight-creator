@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>五佳球 · 界面原型</title>
+<title>Highlight Creator · 界面原型</title>
 <link rel="stylesheet" href="assets/proto.css">
 <style>
   .wrap { max-width: 1140px; margin: 0 auto; }
@@ -67,52 +67,91 @@
 <body>
 
 <nav class="pagenav">
-  <a href="index.html" class="on">总览</a><span class="sep">/</span>
+  <a href="index.html">总览</a>
+  <a href="main-window.html">主窗口</a>
+  <a href="template-editor.html">模板</a>
+  <a href="marking-dialogs.html">标注</a>
+  <a href="phone-marking.html">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
   <a href="top5-picker.html">五佳球·选择</a>
   <a href="top5-editor.html">解说</a>
   <a href="top5-generated.html">已生成</a>
   <span class="sep">/</span>
   <a href="dialogs.html">对话框</a>
   <a href="studio.html">语音工作室</a>
+  <a href="ai-marking.html">AI 打点</a>
   <span class="spacer"></span>
-  <span class="tag">静态原型 · 2026-10</span>
+  <span class="tag">静态原型 · 2026-11</span>
 </nav>
 
 <div class="stage stage--top">
   <div class="wrap">
-    <h1 class="page">五佳球 · 界面原型</h1>
+    <h1 class="page">Highlight Creator · 界面原型</h1>
     <p class="lede">
       这套页面是<b>静态原型</b>，逐屏对照当前实现绘制（尺寸、文案、配色都取自代码），
       用浏览器直接打开即可，不需要构建。改动界面后请同步这里，保持一致。
-      <br>原型覆盖范围：五佳球两步流程、语音包相关对话框、缓存对话框、语音工作室。
+      <br>原型覆盖范围：<b>主窗口全部区域</b>（工具栏 / 播放器 / 源文件 / 模板面板 / 控制条 / 时间轴 / 时间片段表 / 状态栏）、
+      模板编辑器与预览、标注与引导对话框、手机打点、设置，五佳球两步流程（成片缓存回填、试听版本复用、seed 输入）、
+      语音包相关对话框、缓存对话框、语音工作室、AI 打点。
     </p>
 
     <h2 class="sec">界面清单</h2>
     <div class="cards">
+      <a class="cardlink" href="main-window.html">
+        <div class="name"><span class="n">1</span>主窗口</div>
+        <div class="what">单窗口三栏：播放器 / 折叠条 / 320px 右栏（源文件 + 开场·转场·结尾·背景音乐 四组模板面板）、56px 控制条（跳转 · 标记 · 速度 · 我要）、时间轴（收起 / 展开）、200px 时间片段表、状态栏；含空项目与「我要」菜单展开态。</div>
+        <div class="src"><code>main_window.dart / control_panel.dart / player_screen.dart</code></div>
+      </a>
+      <a class="cardlink" href="template-editor.html">
+        <div class="name"><span class="n">2</span>模板编辑器与预览</div>
+        <div class="what">模板编辑器（开场/转场/结尾、字体、字号、颜色、位置、实时预览）、右栏模板面板（选中 / 空态 / 背景音乐）、预览与确认（分辨率、确认并制作、正在渲染、缺少模板文件）。</div>
+        <div class="src"><code>template_editor_dialog.dart / template_panel.dart / preview_dialog.dart</code></div>
+      </a>
+      <a class="cardlink" href="marking-dialogs.html">
+        <div class="name"><span class="n">3</span>标注与引导对话框</div>
+        <div class="what">前往时间（三种状态 + 三种提示条）、时间片段分类明细（进攻/防守/未分类 + 复制）、放大定位点、新手指引（8 步）。</div>
+        <div class="src"><code>go_to_dialog.dart / clip_breakdown_dialog.dart / zoom_in_point_dialog.dart / guide_dialog.dart</code></div>
+      </a>
+      <a class="cardlink" href="phone-marking.html">
+        <div class="name"><span class="n">4</span>手机打点</div>
+        <div class="what">二维码、监听地址、令牌、打开/停止；运行中 / 已停止 / 无局域网 / 启动失败四种状态。</div>
+        <div class="src"><code>phone_marking_dialog.dart / docs/phone_marking.md</code></div>
+      </a>
+      <a class="cardlink" href="settings.html">
+        <div class="name"><span class="n">5</span>设置</div>
+        <div class="what">主题 / 语言 / 快捷键 / 帮助 / 关于，以及主题与语言两个单选对话框。</div>
+        <div class="src"><code>settings_screen.dart</code></div>
+      </a>
       <a class="cardlink" href="top5-picker.html">
-        <div class="name"><span class="n">1</span>五佳球 · 步骤 1 选择</div>
-        <div class="what">层级/类型切换、周期标签、已选计数；左侧候选池（星级 + 描述 + 起止时间）、右侧名次槽位。</div>
-        <div class="src"><code>top5_dialog.dart → _buildPicker()</code></div>
+        <div class="name"><span class="n">6</span>五佳球 · 步骤 1 选择</div>
+        <div class="what">层级/类型切换、周期标签、已选计数；左侧候选池（星级 + 描述 + 起止时间）、右侧名次槽位；本周期成片已存在时自动回填并显示「已恢复 …的成片」标签。</div>
+        <div class="src"><code>top5_dialog.dart → _buildPicker() / _restoreFromCache()</code></div>
       </a>
       <a class="cardlink" href="top5-editor.html">
-        <div class="name"><span class="n">2</span>五佳球 · 步骤 2 预览与解说</div>
-        <div class="what">解说语音行（系统语音 + 语音包 · 我的声音 · 7.0 秒）、错误条、视频预览与解说卡片。</div>
-        <div class="src"><code>_buildEditor() / _buildVoiceRow() / _commentList()</code></div>
+        <div class="name"><span class="n">7</span>五佳球 · 步骤 2 预览与解说</div>
+        <div class="what">解说语音行（系统语音 + 语音包）、seed 输入（默认 50，0–4294967295，越界提示）、错误条、视频预览与解说卡片；试听保存最后一版克隆并显示 seed，生成时直接复用。</div>
+        <div class="src"><code>_buildEditor() / _buildVoiceRow() / _seedRow() / _commentList() / _previewVoice()</code></div>
       </a>
       <a class="cardlink" href="top5-generated.html">
-        <div class="name"><span class="n">3</span>五佳球 · 已生成</div>
+        <div class="name"><span class="n">8</span>五佳球 · 已生成</div>
         <div class="what">footer 变为 观看 / 重新生成 / 关闭；附生成中（转圈 + 百分比 + 禁用）状态。</div>
         <div class="src"><code>_footer()</code></div>
       </a>
       <a class="cardlink" href="dialogs.html">
-        <div class="name"><span class="n">4</span>对话框集合</div>
+        <div class="name"><span class="n">9</span>对话框集合</div>
         <div class="what">语音包指南、导入语音包、缓存文件、清空二次确认。</div>
         <div class="src"><code>voice_pack_guide_dialog.dart / cache_dialog.dart</code></div>
       </a>
       <a class="cardlink" href="studio.html">
-        <div class="name"><span class="n">5</span>语音工作室（插件）</div>
-        <div class="what">五步：读提示词 → 录音（波形/时长/峰值）→ 语调参考 → 试听克隆 → 保存语音包。</div>
+        <div class="name"><span class="n">10</span>语音工作室（插件）</div>
+        <div class="what">五步：读提示词 → 录音（波形/时长/峰值）→ 语调参考 → 试听克隆（seed 输入框，默认 42，0–4294967295）→ 保存语音包。</div>
         <div class="src"><code>voice_clone/studio/studio.html</code></div>
+      </a>
+      <a class="cardlink" href="ai-marking.html">
+        <div class="name"><span class="n">11</span>AI 打点 <span style="font-size:11px;color:#f2b933">（入口已隐藏）</span></div>
+        <div class="what">API Key / 模型 / 选片（可多选）→（可选）标定球门 → 按文件名排序逐个文件：抽音频 + 算画面运动 · 找候选（两者取并集）· 逐段判定 →（文件级 + 阶段级两层进度）→ 高光片段列表（按文件分组）+ 候选列表（按文件分组，高光/普通/未判定 + 查看）→ 保存为项目（所有文件进同一个 .hlcproj）；附「球门标定」、「模型不支持图片」与「画面运动不可用」三种状态。<b>「我要」里的菜单项当前被注释隐藏，取消注释即可恢复。</b></div>
+        <div class="src"><code>ai_marking_dialog.dart → _analyze() / _saveProject()</code></div>
       </a>
       <a class="cardlink" href="../../docs/voice_clone.md">
         <div class="name"><span class="n">i</span>安装指南（文档）</div>
@@ -144,7 +183,15 @@
     <h2 class="sec">尺寸与字号</h2>
     <table class="grid">
       <tr><th>项</th><th>值</th><th>出现在</th></tr>
+      <tr><td>主窗口</td><td><code>1280 × 720</code>（<code>Win32Window::Size</code>）</td><td>main_window / windows/runner</td></tr>
+      <tr><td>主窗口各条</td><td>工具栏 <code>40</code>、控制条 <code>56</code>、时间轴标题 <code>22</code>、片段表 <code>200</code>、状态栏 <code>24</code>；右栏 <code>320</code>；折叠条 <code>20</code></td><td>main_window / control_panel</td></tr>
       <tr><td>五佳球对话框</td><td><code>1140 × 720</code>（窗口小于 1180/760 时各减 40）</td><td>top5_dialog</td></tr>
+      <tr><td>模板编辑器</td><td><code>1100 × 680</code>，左轨 <code>320</code></td><td>template_editor_dialog</td></tr>
+      <tr><td>设置</td><td>宽 <code>500</code>，高自适应</td><td>settings_screen</td></tr>
+      <tr><td>时间片段分类明细</td><td><code>820 × 700</code></td><td>clip_breakdown_dialog</td></tr>
+      <tr><td>新手指引</td><td><code>960 × 620</code></td><td>guide_dialog</td></tr>
+      <tr><td>放大定位点</td><td><code>800 × 450</code>（画面区）</td><td>zoom_in_point_dialog</td></tr>
+      <tr><td>手机打点二维码</td><td><code>208 × 208</code></td><td>phone_marking_dialog</td></tr>
       <tr><td>步骤芯片</td><td><code>18px 圆 + 10px 数字</code>，激活金色、未激活白 38%</td><td>_stepChip()</td></tr>
       <tr><td>名次徽章</td><td><code>20px 圆</code>，NO.1 金色，其余 <code>#E2342B</code></td><td>_rankBadge()</td></tr>
       <tr><td>空槽位</td><td><code>20px 圆</code>，白 24% 描边</td><td>_slotCircleEmpty()</td></tr>
@@ -154,6 +201,7 @@
       <tr><td>圆角</td><td><code>面板 10、卡片 10、输入 6、徽章 8</code></td><td>全局</td></tr>
       <tr><td>工作室内容宽</td><td><code>780px</code>（浏览器窗口）</td><td>studio.html</td></tr>
       <tr><td>缓存对话框宽</td><td><code>640px</code></td><td>cache_dialog</td></tr>
+      <tr><td>AI 打点对话框</td><td>内容宽 <code>660px</code>，高光列表高 <code>190px</code>，候选列表高 <code>220px</code></td><td>ai_marking_dialog</td></tr>
     </table>
 
     <h2 class="sec">角色与产物</h2>

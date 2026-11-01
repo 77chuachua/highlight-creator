@@ -66,15 +66,22 @@
 <body>
 
 <nav class="pagenav">
-  <a href="index.html">总览</a><span class="sep">/</span>
+  <a href="index.html">总览</a>
+  <a href="main-window.html">主窗口</a>
+  <a href="template-editor.html">模板</a>
+  <a href="marking-dialogs.html">标注</a>
+  <a href="phone-marking.html">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
   <a href="top5-picker.html">五佳球·选择</a>
   <a href="top5-editor.html">解说</a>
   <a href="top5-generated.html">已生成</a>
   <span class="sep">/</span>
   <a href="dialogs.html">对话框</a>
   <a href="studio.html" class="on">语音工作室</a>
+  <a href="ai-marking.html">AI 打点</a>
   <span class="spacer"></span>
-  <span class="tag">静态原型 · 内容宽 780</span>
+  <span class="tag">静态原型 · 2026-11</span>
 </nav>
 
 <div class="stage stage--top">
@@ -200,9 +207,14 @@
         </div>
         <div class="textarea">这段文字是我自己输入的，用来验证试听支持任意文本。</div>
         <div class="srow" style="margin-top:8px">
+          <span class="shint" style="margin:0">seed</span>
+          <input class="input" style="width:170px" value="42">
+          <span class="shint" style="margin:0">0 – 4294967295，默认 42；同一 seed + 同一句话得到同一版</span>
+        </div>
+        <div class="srow" style="margin-top:8px">
           <button class="btn btn--primary">试听</button>
           <button class="btn">用示例句</button>
-          <span class="shint" style="margin:0">8.7 秒</span>
+          <span class="shint" style="margin:0">8.7 秒 · seed 42</span>
         </div>
         <div class="audiobar">
           <span class="play">▶</span>

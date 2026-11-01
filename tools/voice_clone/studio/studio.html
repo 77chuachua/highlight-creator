@@ -198,6 +198,12 @@
     </div>
     <textarea id="previewText" rows="2"></textarea>
     <div class="row" style="margin-top:8px">
+      <span class="hint" style="margin:0">seed</span>
+      <input type="number" id="seed" min="0" max="4294967295" step="1" value="42"
+             style="width:170px">
+      <span class="hint" id="seedInfo" style="margin:0">0 – 4294967295，默认 42；同一 seed + 同一句话得到同一版</span>
+    </div>
+    <div class="row" style="margin-top:8px">
       <button id="preview" class="primary">试听</button>
       <button id="resetText">用示例句</button>
       <span class="hint" id="previewInfo" style="margin:0"></span>
@@ -464,6 +470,7 @@ $('preview').onclick = async () => {
       speed: Number($('speed').value),
       instruct: $('instruct').value.trim(),
       promptText: $('promptText').value.trim(),
+      seed: Number($('seed').value),
     });
     if (!result.ok) {
       showMsg($('previewMsg'), result.error, 'err');
@@ -472,7 +479,9 @@ $('preview').onclick = async () => {
     $('previewAudio').src = '/api/audio/preview?v=' + Date.now();
     $('previewAudio').style.display = 'block';
     $('previewAudio').play();
-    $('previewInfo').textContent = result.preview.seconds.toFixed(1) + ' 秒';
+    $('previewInfo').textContent = result.preview.seconds.toFixed(1) + ' 秒' +
+      (result.seed === undefined || result.seed === null
+        ? '' : ' · seed ' + result.seed);
     if (result.notice) {
       // The engine dropped a style file that no longer exists.
       $('styleInfo').textContent = '未选择';
@@ -600,6 +609,7 @@ loadState().then(() => pingService().then((info) => {
     ['选一段你觉得"语气对"的音频，克隆会沿用它的语调，但保留你的音色。不选就用你自己的语调。', 'Pick a clip whose delivery you like: cloning copies its intonation but keeps your timbre. Leave it empty to use your own.'],
     ['指令只影响语气，不会被念出来。填了就走「语气指令」这条路径；同时选了语调参考时，先在参考的语气上执行指令，再换成你的音色。', 'The instruction only shapes the delivery, it is never read out. With an intonation reference the instruction is applied on top of it, then your timbre is restored.'],
     ['输入要念的句子（留空则用示例句）。第一次试听需要加载模型，约 20~40 秒。', 'Text to speak (empty uses the sample). The first audition loads the model, about 20-40 s.'],
+    ['0 – 4294967295，默认 42；同一 seed + 同一句话得到同一版', '0 - 4294967295, default 42; the same seed and sentence return the same take'],
     ['录一段你的声音，或者载入已有的语音包；换语调参考、换文本试听，满意后另存为新语音包。', 'Record your voice or load an existing pack; tune the intonation and the text, then save a new pack.'],
     ['放慢会同时变低沉（引擎是对频谱做插值），不是单纯的慢放。', 'Slowing down also lowers the pitch (the engine interpolates the spectrum); it is not plain slow-motion.'],
     ['引擎用它把参考音频和文字对齐。照着引导语录就留默认；用别人的音频时，最好填上它实际念的内容。', 'The engine aligns the reference against this text. Keep the default when you read the prompt; with someone else\u2019s audio, type what it actually says.'],

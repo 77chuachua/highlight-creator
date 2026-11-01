@@ -104,6 +104,15 @@ class _Entry {
 class TemplateEditorDialog extends ConsumerStatefulWidget {
   final TemplateCategory initialCategory;
 
+  /// The saves this dialog's `dispose()` started that have not landed yet.
+  ///
+  /// Edits are debounced and flushed when the dialog closes, i.e. after the
+  /// widget is gone; the Make flow opens this editor from the preview dialog and
+  /// renders right afterwards, so anything reading template parameters must
+  /// await this first — otherwise the render reads the pre-edit row and the edit
+  /// looks like it was ignored.
+  static Future<void> pendingWrites = Future<void>.value();
+
   /// Default title for embedded startup templates: the localized placeholder.
   static String defaultStartupTitle(String lang) =>
       lang == '中文' ? '精彩集锦' : 'Awesome Highlight';
@@ -256,14 +265,17 @@ class _TemplateEditorDialogState
     // runs after the widget is gone, where `ref` throws, so it reads the
     // repository from the locator.
     _disposing = true;
+    final writes = <Future<void>>[];
     if (_saveDebounce?.isActive ?? false) {
       _saveDebounce!.cancel();
-      unawaited(_persistFontConfig(_selected));
+      writes.add(_persistFontConfig(_selected));
     }
     if (_titleSaveDebounce?.isActive ?? false) {
       _titleSaveDebounce!.cancel();
-      unawaited(_persistTitle(_selected, _textCtrl.text.trim()));
+      writes.add(_persistTitle(_selected, _textCtrl.text.trim()));
     }
+    if (writes.isNotEmpty)
+      TemplateEditorDialog.pendingWrites = Future.wait(writes).then((_) {});
     _debounce?.cancel();
     _player?.dispose();
     _textCtrl.dispose();
@@ -326,6 +338,10 @@ class _TemplateEditorDialogState
 
   /// Persist the current dialog selection back into the shared
   /// [selectedTemplatesProvider] so every UI surfaces the same template.
+  ///
+  /// Picking a startup also adopts its design set's transition and ending: the
+  /// three files of a pack are one choice, and this dialog used to be the one
+  /// place that did not honour it.
   Future<void> _selectEntry(_Entry entry) async {
     final repo = ref.read(templateRepositoryProvider);
     final type = entry.type;
@@ -343,7 +359,12 @@ class _TemplateEditorDialogState
       ));
     }
     if (t != null) {
-      ref.read(selectedTemplatesProvider.notifier).select(type, t.id);
+      final notifier = ref.read(selectedTemplatesProvider.notifier);
+      if (type == TemplateType.startup) {
+        await notifier.selectStartupWithSet(t.id);
+      } else {
+        notifier.select(type, t.id);
+      }
     }
   }
 
@@ -409,11 +430,23 @@ class _TemplateEditorDialogState
   /// registry keyed by that path. Catalogue templates used to resolve to
   /// nothing, so their settings loaded as defaults and were dropped on save
   /// without a trace.
+  ///
+  /// A user entry's `Template` was captured when the dialog opened, and every
+  /// save rebuilds the WHOLE row from it, so writing that snapshot back would
+  /// revert whatever the same session saved a moment earlier: retype the
+  /// placeholder and then drag the font size, and the size save (600 ms debounce
+  /// beats the title's 800 ms) put the old text back, and vice versa. The row is
+  /// therefore re-read by id, and the snapshot is only a fallback for the
+  /// dispose-time flush where no repository is reachable any more.
   Future<Template?> _registeredTemplate(_Entry entry) async {
-    if (entry.userTemplate != null) return entry.userTemplate;
+    final repo = _repo();
+    final user = entry.userTemplate;
+    if (user != null) {
+      final fresh = repo == null ? null : await repo.getById(user.id);
+      return fresh ?? user;
+    }
     final path = entry.resolvedPath;
     if (path == null) return null;
-    final repo = _repo();
     if (repo == null) return null;
     final list = await repo.listByType(entry.type);
     return list.where((x) => _samePath(x.path, path)).firstOrNull;

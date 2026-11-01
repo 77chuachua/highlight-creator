@@ -1,13 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import 'package:highlight_creator/data/app_paths.dart';
+import 'package:highlight_creator/data/l10n.dart';
 import 'package:highlight_creator/di/injection.dart';
 import 'package:highlight_creator/data/top5_repository.dart';
 import 'package:highlight_creator/data/ffi/video_processing_service.dart';
@@ -21,7 +24,9 @@ import 'package:highlight_creator/presentation/shell/template_state.dart';
 import 'package:highlight_creator/presentation/shell/voice_pack_guide_dialog.dart';
 import 'package:highlight_creator/services/error_logger.dart';
 import 'package:highlight_creator/services/local_voice_service.dart';
+import 'package:highlight_creator/services/top5_cache.dart';
 import 'package:highlight_creator/services/voice_service.dart';
+import 'package:highlight_creator/services/voice_take_store.dart';
 
 /// Open the Top-5 flow. Weekly reels pick from the current project's clips,
 /// monthly reels pick from this month's weekly reels, yearly ones from this
@@ -29,6 +34,10 @@ import 'package:highlight_creator/services/voice_service.dart';
 Future<void> openTop5Dialog(BuildContext context, WidgetRef ref) {
   return showDialog<void>(
     context: context,
+    // Modal on purpose: picking and narrating five clips is a long flow and a
+    // stray click next to the dialog used to close it and lose the work. The
+    // dialog owns its exits (取消 / 关闭 / the header ✕).
+    barrierDismissible: false,
     builder: (_) => const Top5Dialog(),
   );
 }
@@ -97,9 +106,30 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
   /// Set once a reel renders: the dialog stays open so it can be watched.
   String? _outputPath;
 
+  /// The one preview player for the whole dialog, with its [VideoController].
+  ///
+  /// Pair them once and keep them for the dialog's life: media_kit binds the
+  /// native video output to the [Player], so switching clips is only
+  /// `player.open(Media(...))` on the same pair. Building a new pair per click
+  /// (or letting a new [Video] widget mount on a fresh texture) is what left
+  /// the pane black while the clock kept running — the audio/position follows
+  /// the player, the picture follows the texture.
   Player? _previewPlayer;
   VideoController? _previewController;
   String? _previewPath;
+
+  /// Identity of what the preview player holds, so clicking the same clip
+  /// again only seeks/plays instead of re-slicing and re-opening it.
+  String? _previewKey;
+
+  /// Bumped per preview so a superseded one cannot write into the new one.
+  int _previewSeq = 0;
+
+  /// mpv's own error/warning stream, plus the last line it printed for the
+  /// clip being opened. A black pane after a successful `open` leaves no
+  /// exception anywhere, so this is the only evidence there is.
+  final List<StreamSubscription<dynamic>> _previewSubs = [];
+  String? _previewMpvProblem;
 
   /// Preview work in flight. Cutting a clip runs ffmpeg for a few seconds,
   /// and a button that looks dead reads as "the preview is broken".
@@ -115,6 +145,31 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
   /// output path, and the loser left a half-written clip behind.
   final Map<String, Future<String?>> _sliceJobs = {};
   String? _sliceError;
+
+  /// Set when the ranking was filled from the reel already on disk, so the
+  /// picker can say why it is not empty.
+  bool _restoredFromCache = false;
+
+  /// The take last heard per narration line, reused by the render. Cloning
+  /// quality varies run to run, so the user rolls by auditioning and this keeps
+  /// the roll that was actually liked.
+  late final VoiceTakeStore _takes =
+      VoiceTakeStore('${_voiceDir().path}${Platform.pathSeparator}takes');
+
+  /// Seed for auditioning and for the no-take clone. 50 by default: the user
+  /// types it, so a take they like can be asked for again by number (here and
+  /// in the studio).
+  static const int _defaultSeed = 50;
+  static const int _seedMax = 4294967295;
+  late final TextEditingController _seedController =
+      TextEditingController(text: '$_defaultSeed');
+
+  /// The seed to clone with, or null when the field is not a usable seed.
+  int? get _seed {
+    final value = int.tryParse(_seedController.text.trim());
+    if (value == null || value < 0 || value > _seedMax) return null;
+    return value;
+  }
 
   /// Installed Windows voices and imported voice packs. [_voiceId] holds
   /// either a system voice id or `pack:<id>`.
@@ -146,9 +201,20 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
   @override
   void initState() {
     super.initState();
+    // The player/texture pair exists from the first frame. media_kit creates
+    // the native video output asynchronously, and opening a clip before it
+    // lands is one of the ways the pane ends up black while the clock runs.
+    final player = Player();
+    _previewPlayer = player;
+    _previewController = VideoController(player);
+    _watchPreviewPlayer(player);
     // The voice list comes from the platform, so it is read after the first
-    // frame rather than during initState.
-    Future.microtask(_loadVoices);
+    // frame rather than during initState. The reel on disk is restored in the
+    // same pass, so the picker opens on what was already made.
+    Future.microtask(() {
+      _loadVoices();
+      _restoreFromCache();
+    });
   }
 
   @override
@@ -156,9 +222,101 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
     for (final c in _comments.values) {
       c.dispose();
     }
+    _seedController.dispose();
+    for (final sub in _previewSubs) {
+      sub.cancel();
+    }
+    _previewSubs.clear();
+    // The [VideoController] is released by the [Player] (media_kit registers
+    // its dispose on `player.platform.release`), so one dispose frees the pair.
     _previewPlayer?.dispose();
+    _previewPlayer = null;
+    _previewController = null;
     _voicePlayer?.dispose();
     super.dispose();
+  }
+
+  /// Log whatever mpv says while a clip opens.
+  ///
+  /// A decoder or video-output failure is not an exception: mpv writes it to
+  /// its log and keeps going, which is exactly the "black pane, nothing in the
+  /// log" case. Every line is also kept in [_previewMpvProblem] so the failure
+  /// can be reported with it.
+  void _watchPreviewPlayer(Player player) {
+    _previewSubs.add(player.stream.error.listen((text) {
+      _previewMpvProblem = text;
+      ErrorLogger.log('[top5] preview=mpv_error text=${_oneLine(text)}', null,
+          source: 'top5');
+    }));
+    _previewSubs.add(player.stream.log.listen((entry) {
+      final level = entry.level.toLowerCase();
+      if (level != 'error' && level != 'fatal' && level != 'warn') return;
+      final line = '[${entry.prefix}] ${entry.text}';
+      _previewMpvProblem = line;
+      ErrorLogger.log('[top5] preview=mpv level=$level text=${_oneLine(line)}',
+          null,
+          source: 'top5');
+    }));
+  }
+
+  /// One line, short enough for the error log.
+  static String _oneLine(String text) {
+    final flat = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return flat.length <= 300 ? flat : '${flat.substring(0, 300)}…';
+  }
+
+  /// A brand-new player/texture pair.
+  ///
+  /// Reused for the recovery path: a wedged video output or a hardware decoder
+  /// that refused this file does not survive a fresh mpv instance, and a fresh
+  /// instance is the only lever the app has.
+  Player _freshPreviewPlayer() {
+    final old = _previewPlayer;
+    final player = Player();
+    _watchPreviewPlayer(player);
+    if (mounted) {
+      setState(() {
+        _previewPlayer = player;
+        _previewController = VideoController(player);
+        _previewPath = null;
+        _previewKey = null;
+      });
+    } else {
+      _previewPlayer = player;
+      _previewController = VideoController(player);
+      _previewPath = null;
+      _previewKey = null;
+    }
+    if (old != null) {
+      // After the frame that swaps the [Video] widget: tearing the old output
+      // down first leaves the rebuilt widget pointing at a dead player.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(old.dispose().then((_) {}, onError: (Object _) {}));
+      });
+    }
+    return player;
+  }
+
+  /// Whether the pane can actually show a picture.
+  ///
+  /// [Video] only draws once mpv reports a video size *and* the native output
+  /// has handed it a texture id with a real (non 1×1) rect; anything short of
+  /// that is a black rectangle after a perfectly successful `open()`. All three
+  /// are polled because none of them raises an exception.
+  Future<bool> _waitPreviewPicture(Player player) async {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      final state = player.state;
+      final controller = _previewController;
+      final rect = controller?.rect.value;
+      final decoded = (state.width ?? 0) > 0 && (state.height ?? 0) > 0;
+      final textured = controller?.id.value != null &&
+          rect != null &&
+          rect.width > 2 &&
+          rect.height > 2;
+      if (decoded && textured) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    return false;
   }
 
   /// System voices plus imported packs. Empty only when the machine has no
@@ -203,6 +361,33 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
     await _voicePlayer!.play();
   }
 
+  /// File identity of one of the pack's audio files ('' when it is missing).
+  String _packStamp(String path) {
+    if (path.isEmpty) return '';
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return 'missing';
+      final stat = file.statSync();
+      return '${stat.size}:${stat.modified.millisecondsSinceEpoch}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// Everything a cloned take depends on. A take made from a different line or
+  /// a different pack must never be rendered: the words would not match.
+  String _takeSignature(VoicePack pack, String text) =>
+      VoiceTakeStore.signature(
+        packId: pack.id,
+        text: text,
+        speed: pack.speed,
+        instruct: pack.instruct,
+        promptText: pack.promptText,
+        // Re-recording the pack changes these files, not the pack id.
+        voice: '${_packStamp(pack.referencePath)}|'
+            '${_packStamp(pack.stylePath ?? '')}',
+      );
+
   /// Speak this clip's commentary with the selected voice.
   ///
   /// The button sits on every comment, so it is clear which line is heard.
@@ -226,8 +411,15 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
         _fail(_l10n.top5PackReferenceMissing(pack.name));
         return;
       }
+      // No seed, no clone: the field is part of what the take means.
+      final seed = _seed;
+      if (seed == null) {
+        _fail(_l10n.top5SeedInvalid);
+        return;
+      }
       setState(() => _voiceBusy = true);
       try {
+        final signature = _takeSignature(pack, own);
         final result = await LocalVoiceService.speak(
           text: own,
           // The pack carries the transcript its reference was recorded with;
@@ -239,6 +431,7 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
           prosodyReference: pack.stylePath,
           speed: pack.speed,
           instruct: pack.instruct,
+          seed: seed,
           output: '${_voiceDir().path}${Platform.pathSeparator}'
               'clone_preview_${candidate.id}.wav',
         );
@@ -246,6 +439,9 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
           _fail(result.error ?? _l10n.top5CloneFailed);
           return;
         }
+        // Keep the version that was just heard before playing it: the render
+        // must not roll the dice again and replace a good line with a bad one.
+        _takes.keep(candidate.id, signature, result.path!, seed: seed);
         await _playFile(result.path!);
       } finally {
         if (mounted) setState(() => _voiceBusy = false);
@@ -458,10 +654,41 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
     _toast(_l10n.top5Imported(pack.name));
   }
 
-  /// What will be heard for this clip.
-  String _narrationState(_Candidate candidate) {
+  /// The take kept from the last audition, when it still matches this line.
+  ///
+  /// Two tiny stat/reads per card per build: a take is one wav plus its
+  /// signature, and cards do not rebuild on every keystroke.
+  VoiceTake? _takeFor(_Candidate candidate) {
     final pack = _selectedPack;
-    if (pack != null) return _l10n.top5NarrationPack(pack.name);
+    final comment = _comments[candidate.id]?.text.trim() ?? '';
+    if (pack == null || comment.isEmpty) return null;
+    return _takes.find(candidate.id, _takeSignature(pack, comment));
+  }
+
+  /// Replay the take kept from the last audition.
+  ///
+  /// Nothing is cloned here: keeping the take is only useful if it can be heard
+  /// again later, without rolling new dice.
+  Future<void> _playTake(VoiceTake take) async {
+    if (!File(take.path).existsSync()) {
+      _fail(_l10n.top5TakeMissing);
+      return;
+    }
+    try {
+      await _playFile(take.path);
+    } catch (e) {
+      _fail(_l10n.top5PreviewFailed(e));
+    }
+  }
+
+  /// What will be heard for this clip. [take] is [_takeFor] of the same card.
+  String _narrationState(_Candidate candidate, VoiceTake? take) {
+    final pack = _selectedPack;
+    if (pack != null) {
+      return take != null
+          ? _l10n.top5NarrationPackCached(pack.name)
+          : _l10n.top5NarrationPack(pack.name);
+    }
     final comment = _comments[candidate.id]?.text.trim() ?? '';
     if (comment.isEmpty) return _l10n.top5NoComment;
     String? name;
@@ -632,7 +859,76 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
         c.dispose();
       }
       _comments.clear();
+      _restoredFromCache = false;
     });
+    // The bucket just switched to may already have a reel on disk.
+    _restoreFromCache();
+  }
+
+  /// Fill the ranking and the narration copy from the reel already on disk.
+  ///
+  /// "Make the Top 5" is a long flow and the render can fail half-way, so the
+  /// clips it wrote are the deliverable: reopening the dialog (or coming back
+  /// to this level/kind) must not ask for the same picks and the same wording
+  /// again. Step 2 then shows the restored comments, ready to regenerate.
+  void _restoreFromCache() {
+    if (_picked.isNotEmpty || !mounted) return;
+    final periodKey = top5PeriodKey(_level, _projectDate);
+    List<Top5CachedPick> cached;
+    try {
+      cached = Top5Cache.picks(
+        clipsDir: _clipsDir(),
+        repo: _repo,
+        level: _level,
+        kind: _kind,
+        periodKey: periodKey,
+        wanted: _wantedCount,
+      );
+    } catch (e) {
+      // Nothing the user can act on: the dialog simply starts empty.
+      ErrorLogger.log(e, null, source: 'top5');
+      return;
+    }
+    if (cached.isEmpty || !mounted) return;
+    // Rows the pool still offers keep their preview/slice path; a slot whose
+    // source is gone (project re-imported, parent reel deleted) is restored
+    // from its own clip, which is what the render needs anyway.
+    final pool = {for (final c in _candidates()) c.id: c};
+    setState(() {
+      for (final pick in cached) {
+        final candidate =
+            pool[pick.sourceId] ?? _candidateOfCache(pick, periodKey);
+        _picked.add(candidate);
+        final controller =
+            _comments.putIfAbsent(candidate.id, TextEditingController.new);
+        // Never overwrite something the user already typed.
+        if (controller.text.trim().isEmpty && pick.comment.trim().isNotEmpty) {
+          controller.text = pick.comment;
+        }
+      }
+      _restoredFromCache = true;
+    });
+    ErrorLogger.log(
+        '[top5] cache=hit level=${_level.name} kind=${_kind.name} '
+        'period=$periodKey picks=${cached.length}',
+        null,
+        source: 'top5');
+  }
+
+  /// A restored slot that the picker no longer offers: its own clip is both the
+  /// preview and the render input. Its recorded source id is kept as the
+  /// candidate id, so a re-render writes the same row again.
+  _Candidate _candidateOfCache(Top5CachedPick pick, String periodKey) {
+    return _Candidate(
+      id: pick.sourceId.isNotEmpty
+          ? pick.sourceId
+          : 'cached_${_level.name}_${periodKey}_${_kind.name}_${pick.rank}',
+      title: pick.title.isEmpty
+          ? _l10n.top5ClipFallback(pick.rank)
+          : pick.title,
+      subtitle: '$periodKey · NO.${pick.rank}',
+      clipPath: pick.clipPath,
+    );
   }
 
   /// The clips a reel owns, one file per rank.
@@ -768,8 +1064,56 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
     return lines.isEmpty ? _l10n.top5SliceFailedShort : lines.last.trim();
   }
 
+  /// What identifies the clip in the preview player. Slot id plus the source
+  /// file and the exact cut: a re-picked or re-ordered slot is a different
+  /// clip even though it may share an id.
+  static String _previewKeyOf(_Candidate candidate) => <String>[
+        candidate.id,
+        candidate.sourcePath ?? candidate.clipPath ?? '',
+        candidate.start.toStringAsFixed(3),
+        candidate.duration.toStringAsFixed(3),
+        candidate.remote ? 'zoom' : '',
+      ].join('|');
+
   Future<void> _preview(_Candidate candidate) async {
+    // One preview at a time: while a clip is being prepared the player is
+    // mid-`open`, so a second tap must not fight it.
     if (_previewBusy) return;
+
+    final key = _previewKeyOf(candidate);
+
+    // Same clip as the one already loaded: play it, do not prepare it again.
+    // Re-slicing here cost an ffprobe, a 「准备片段」 flash and a re-open of the
+    // file the player was already showing. A pane that reported no picture is
+    // not "already loaded": it has to go through the recovery path below.
+    if (key == _previewKey &&
+        _previewPlayer != null &&
+        _previewPath != null &&
+        _previewError == null) {
+      final player = _previewPlayer!;
+      try {
+        // A finished clip starts over; a paused one resumes where it stopped.
+        if (player.state.completed) await player.seek(Duration.zero);
+        await player.play();
+        if (mounted && _previewError != null) {
+          setState(() => _previewError = null);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _previewError = _l10n.top5PreviewFailed(e));
+        _fail(_l10n.top5PreviewFailed(e));
+      }
+      return;
+    }
+
+    final seq = ++_previewSeq;
+    _previewMpvProblem = null;
+
+    // The pair already exists (initState created it); the widget is attached
+    // to the controller from the first frame, so only the media changes here.
+    var player = _previewPlayer ?? _freshPreviewPlayer();
+    _previewController ??= VideoController(player);
+
     setState(() {
       _previewBusy = true;
       _previewError = null;
@@ -777,7 +1121,7 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
     });
     try {
       final path = await _sliceClip(candidate);
-      if (!mounted) return;
+      if (!mounted || seq != _previewSeq) return;
       if (path == null) {
         final reason = _sliceError ?? _l10n.top5ClipNoPreview;
         setState(() => _previewError = reason);
@@ -785,22 +1129,95 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
         return;
       }
       setState(() => _previewLabel = _l10n.top5LoadingPlayer);
-      _previewPlayer ??= Player();
-      _previewController ??= VideoController(_previewPlayer!);
-      await _previewPlayer!.open(Media(path));
-      await _previewPlayer!.play();
-      if (!mounted) return;
+      ErrorLogger.log('[top5] preview=open seq=$seq path=$path clip=${candidate.id}',
+          null,
+          source: 'top5');
+
+      // Stop the old clip first: opening while the previous `play()` is still
+      // in flight races two media on one output.
+      await player.pause();
+      if (!mounted || seq != _previewSeq) return;
+      await player.open(Media(path));
+      if (!mounted || seq != _previewSeq) return;
+      await player.play();
+      if (!mounted || seq != _previewSeq) return;
+
+      var healthy = await _waitPreviewPicture(player);
+      if (!healthy) _logPreviewState('no_picture', seq, path, player, 0);
+
+      // One retry on a fresh mpv instance: the failures that survive a good
+      // `open()` (wedged video output, a hardware decoder that refused this
+      // file) are per-instance, and re-creating the player is what clears them.
+      if (!healthy && mounted && seq == _previewSeq) {
+        setState(() => _previewLabel = _l10n.top5ReloadingPlayer);
+        player = _freshPreviewPlayer();
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        if (!mounted || seq != _previewSeq) return;
+        await player.open(Media(path));
+        if (!mounted || seq != _previewSeq) return;
+        await player.play();
+        if (!mounted || seq != _previewSeq) return;
+        healthy = await _waitPreviewPicture(player);
+        if (healthy) {
+          ErrorLogger.log(
+              '[top5] preview=recovered seq=$seq path=$path retry=1 mpv=${_oneLine(_previewMpvProblem ?? '')}',
+              null,
+              source: 'top5');
+        } else {
+          _logPreviewState('black', seq, path, player, 1);
+        }
+      }
+
+      if (!mounted || seq != _previewSeq) return;
+      if (!healthy) {
+        setState(() => _previewError = _l10n.top5PreviewNoPicture);
+        _fail(_l10n.top5PreviewNoPicture);
+        return;
+      }
+      final state = player.state;
+      ErrorLogger.log(
+          '[top5] preview=ok seq=$seq path=$path w=${state.width} h=${state.height} '
+          'dur=${state.duration.inMilliseconds}',
+          null,
+          source: 'top5');
       setState(() {
         _previewPath = path;
+        _previewKey = key;
         _previewError = null;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || seq != _previewSeq) return;
+      // Say what failed inside the pane: a silent black frame is what made
+      // "no picture" impossible to report.
+      ErrorLogger.log('[top5] preview=failed seq=$seq error=$e', null,
+          source: 'top5');
       setState(() => _previewError = _l10n.top5PreviewFailed(e));
       _fail(_l10n.top5PreviewFailed(e));
     } finally {
-      if (mounted) setState(() => _previewBusy = false);
+      if (mounted && seq == _previewSeq) {
+        setState(() => _previewBusy = false);
+      }
     }
+  }
+
+  /// Log why a preview has no picture: the clip, mpv's state and its own last
+  /// complaint. This is the line that makes the next black screen explainable.
+  void _logPreviewState(
+      String outcome, int seq, String path, Player player, int retries) {
+    final state = player.state;
+    final controller = _previewController;
+    final rect = controller?.rect.value;
+    ErrorLogger.log(
+        '[top5] preview=$outcome seq=$seq retry=$retries path=$path '
+        'w=${state.width} h=${state.height} '
+        'dur=${state.duration.inMilliseconds} '
+        'completed=${state.completed} buffering=${state.buffering} '
+        'video=${state.videoParams.pixelformat} '
+        'texture=${controller?.id.value} '
+        'rect=${rect?.width}x${rect?.height} '
+        'mpv=${_oneLine(_previewMpvProblem ?? '')}',
+        null,
+        source: 'top5');
   }
 
   /// The background-music template the highlight reel uses ("直接使用集锦模板
@@ -879,6 +1296,25 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
           if (!LocalVoiceService.isInstalled) {
             throw StateError(_l10n.top5EngineNotInstalled);
           }
+          // The last audition is the take the user picked. Cloning here again
+          // would roll the dice once more and could trade a good line for a bad
+          // one, which is exactly what auditioning was for.
+          final take = _takes.find(candidate.id, _takeSignature(pack, comment));
+          if (take != null) {
+            if (mounted) {
+              setState(() => _busyLabel =
+                  _l10n.top5BusyTake(i + 1, _picked.length));
+            }
+            narrationPaths.add(take.path);
+            final ms = await VideoProcessingService.probeDurationMs(take.path) ?? 0;
+            narrationDurations.add(ms / 1000.0);
+            continue;
+          }
+          // Cloning without a take needs a seed; the stored take above does not.
+          final seed = _seed;
+          if (seed == null) {
+            throw StateError(_l10n.top5SeedInvalid);
+          }
           if (mounted) setState(() => _busyLabel = _l10n.top5BusyClone(i + 1, _picked.length));
           final result = await LocalVoiceService.speak(
             text: comment,
@@ -889,6 +1325,7 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
             prosodyReference: pack.stylePath,
             speed: pack.speed,
             instruct: pack.instruct,
+            seed: seed,
             output: '${_voiceDir().path}${Platform.pathSeparator}'
                 'clone_${candidate.id}.wav',
           );
@@ -944,6 +1381,11 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
       }
 
       final bgm = await _resolveBgm();
+      // Record the reel before rendering it: the clips and the narration copy
+      // are already on disk, and a render that dies half-way must not also lose
+      // the ranking and the wording the user typed. Reopening the dialog
+      // restores from these rows (see _restoreFromCache).
+      _repo.replaceReel(_level, _kind, periodKey, entries);
       final outDir =
           Directory('${AppPaths.resultsDir}${Platform.pathSeparator}best5');
       if (!outDir.existsSync()) outDir.createSync(recursive: true);
@@ -966,7 +1408,6 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
           if (mounted) setState(() => _progress = p);
         },
       );
-      _repo.replaceReel(_level, _kind, periodKey, entries);
       if (!mounted) return;
       // Stay open: the useful next step is watching the reel, not dismissing.
       setState(() {
@@ -1037,7 +1478,11 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
           const Spacer(),
           IconButton(
             tooltip: _l10n.commonClose,
-            onPressed: _busy ? null : () => Navigator.of(context).pop(),
+            // The dialog is modal, so this is the only way out. It stays live
+            // while a reel renders: closing does not stop the render, and
+            // _generate() records the reel and guards every setState with
+            // `mounted`, so nothing is lost except the progress feedback.
+            onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close, size: 18),
           ),
         ],
@@ -1118,6 +1563,26 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
                     style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant)),
               ),
+              // Why the ranking is already full: the reel for this period is on
+              // disk. Saying so beats a dialog that looks pre-filled by magic.
+              if (_restoredFromCache) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withAlpha(24),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.green.withAlpha(70)),
+                  ),
+                  child: Text(
+                    _l10n.top5RestoredCache(
+                        top5PeriodKey(_level, now), _picked.length),
+                    style: TextStyle(
+                        fontSize: 11, color: Colors.greenAccent.shade100),
+                  ),
+                ),
+              ],
               const Spacer(),
               Container(
                 padding:
@@ -1347,6 +1812,60 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
             style: const TextStyle(fontSize: 10, color: Colors.white24)),
       );
 
+  /// Seed picker for the cloned narration.
+  ///
+  /// The engine reseeds before every request, so this number *is* which take you
+  /// get: the same seed and text give the same audio back. It is also what the
+  /// take badge shows, which is how a liked style is reproduced in the studio.
+  Widget _buildSeedRow(ThemeData theme) {
+    final invalid = _seed == null;
+    return Row(
+      children: [
+        const SizedBox(width: 2),
+        Text(_l10n.top5Seed,
+            style: TextStyle(
+                fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 130,
+          height: 34,
+          child: TextField(
+            controller: _seedController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: const TextStyle(fontSize: 12),
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              hintText: '$_defaultSeed',
+              filled: true,
+              fillColor: _ink,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: BorderSide(
+                    color: invalid ? Colors.red.shade300 : Colors.white12),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            invalid ? '⚠ ${_l10n.top5SeedInvalid}' : _l10n.top5SeedRange,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: invalid ? Colors.red.shade300 : Colors.white38,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // ---------------------------------------------------------------- step 2
   Widget _buildEditor(BuildContext context) {
     final theme = Theme.of(context);
@@ -1356,6 +1875,10 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildVoiceRow(theme),
+          if (_selectedPack != null) ...[
+            const SizedBox(height: 8),
+            _buildSeedRow(theme),
+          ],
           if (_dialogError != null) ...[
             const SizedBox(height: 8),
             _errorStrip(),
@@ -1371,42 +1894,83 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 color: Colors.black,
-                child: _previewBusy
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              _previewLabel,
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.white54),
-                            ),
-                          ],
+                // The [Video] widget stays mounted for the dialog's life and
+                // points at the current [VideoController]: switching clips only
+                // opens a new Media under it. The key follows the controller,
+                // because the recovery path swaps in a fresh pair and a stale
+                // [Video] state would keep listening to the disposed player.
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (_previewController == null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: _emptyState(
+                          theme,
+                          icon: Icons.play_circle_outline,
+                          text: _l10n.top5PreviewHint,
+                          dark: true,
                         ),
                       )
-                    : _previewController == null
-                        ? Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: _emptyState(
-                              theme,
-                              icon: _previewError == null
-                                  ? Icons.play_circle_outline
-                                  : Icons.error_outline,
-                              text: _previewError ?? _l10n.top5PreviewHint,
-                              dark: true,
-                            ),
-                          )
-                        : Video(
-                            key: ValueKey(_previewPath),
-                            controller: _previewController!,
-                            fit: BoxFit.contain,
+                    else
+                      Video(
+                        key: ValueKey(_previewController),
+                        controller: _previewController!,
+                        fit: BoxFit.contain,
+                      ),
+                    // Before the first clip arrives the pane is the video's
+                    // black fill; say what to do instead.
+                    if (_previewController != null &&
+                        _previewPath == null &&
+                        !_previewBusy &&
+                        _previewError == null)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: _emptyState(
+                          theme,
+                          icon: Icons.play_circle_outline,
+                          text: _l10n.top5PreviewHint,
+                          dark: true,
+                        ),
+                      ),
+                    if (_previewError != null)
+                      ColoredBox(
+                        color: Colors.black,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: _emptyState(
+                            theme,
+                            icon: Icons.error_outline,
+                            text: _previewError!,
+                            dark: true,
                           ),
+                        ),
+                      )
+                    else if (_previewBusy)
+                      ColoredBox(
+                        color: Colors.black54,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                _previewLabel,
+                                style: const TextStyle(
+                                    fontSize: 11, color: Colors.white54),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1530,6 +2094,7 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
       itemCount: _picked.length,
       itemBuilder: (context, index) {
         final candidate = _picked[index];
+        final take = _takeFor(candidate);
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -1588,10 +2153,40 @@ class _Top5DialogState extends ConsumerState<Top5Dialog> {
                         : Icons.volume_up_outlined,
                     onPressed: () => _previewVoice(candidate),
                   ),
+                  // Replay, not re-clone: the take the user liked is on disk, so
+                  // listening to it again is free.
+                  _tinyIconButton(
+                    tooltip: _l10n.top5PlayTake,
+                    icon: Icons.play_circle_outline,
+                    onPressed: take == null ? null : () => _playTake(take),
+                  ),
+                  // The seed is the take's identity: type it into the studio and
+                  // the same delivery comes back.
+                  if (take?.seed != null) ...[
+                    const SizedBox(width: 2),
+                    Tooltip(
+                      message: _l10n.top5SeedHint,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _l10n.top5TakeSeed(take!.seed!),
+                          style: const TextStyle(
+                              fontSize: 9,
+                              color: Colors.white54,
+                              fontFeatures: [FontFeature.tabularFigures()]),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _narrationState(candidate),
+                      _narrationState(candidate, take),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style:

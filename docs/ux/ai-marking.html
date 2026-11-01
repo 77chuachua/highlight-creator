@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · AI 打点</title>
+<link rel="stylesheet" href="assets/proto.css">
+<style>
+  /* Only this page needs the form-ish rows, so they live here. */
+  .stack { width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 34px; }
+  .frame__cap {
+    font-size: 12px; color: var(--faint); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .frame__cap b { color: var(--text); font-weight: 600; }
+  .frame__cap code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: 11px; color: var(--gold);
+  }
+  .modal {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: 0 22px 60px rgba(0, 0, 0, .6);
+    padding: 20px 22px 14px;
+  }
+  .modal__title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; margin-bottom: 12px;
+  }
+  .modal__title .ico { font-size: 16px; color: var(--gold); }
+  .modal__actions {
+    display: flex; align-items: center; gap: 4px; margin-top: 16px;
+    justify-content: flex-end;
+  }
+  .warn {
+    background: rgba(240, 74, 74, .11); border: 1px solid rgba(240, 74, 74, .3);
+    border-radius: 6px; padding: 8px 10px; font-size: 12px;
+    line-height: 1.7; color: var(--red-soft); margin-bottom: 10px;
+  }
+
+  .field { margin-bottom: 10px; }
+  .field .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; display: block; }
+  .field .hint { font-size: 10.5px; color: var(--faint); margin-top: 3px; }
+  .krow { display: flex; align-items: center; gap: 6px; }
+
+  .picker { display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; }
+  .picker .grow { flex: 1; }
+  .picker .check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+
+  .filerow {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text); margin-bottom: 12px;
+  }
+  .filerow .trail { margin-left: auto; font-size: 11px; color: var(--faint); }
+
+  .progress { margin-top: 8px; }
+  .progress .grow { flex: 1; }
+  .progress .pct { font-size: 11px; color: var(--faint); }
+
+  .reshead {
+    display: flex; align-items: center; gap: 8px; margin: 14px 0 6px;
+    font-size: 13px; font-weight: 600;
+  }
+  .reshead .trail { font-size: 11px; font-weight: 400; color: var(--faint); }
+  .res {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 0; border-bottom: 1px solid var(--line-soft); font-size: 12px;
+  }
+  .res .t { width: 92px; flex: none; color: var(--text); }
+  .verd {
+    flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+    border: 1px solid transparent;
+  }
+  .verd--hi { color: var(--gold); background: rgba(242, 185, 51, .12); }
+  .verd--plain { color: var(--muted); background: rgba(255, 255, 255, .05); }
+  .verd--none { color: #ffab40; background: rgba(255, 171, 64, .12); }
+  .res .desc {
+    flex: 1; min-width: 0; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .saved {
+    display: flex; align-items: center; gap: 6px; margin-top: 10px;
+    font-size: 11px; color: var(--green); word-break: break-all;
+  }
+  .note-mini { font-size: 11.5px; color: var(--faint); line-height: 1.8; margin-top: 10px; }
+
+  /* Goal calibration: a fake 16:9 frame with two draggable boxes. */
+  .calib { margin: 10px 0 6px; }
+  .calib__frame {
+    position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden;
+    border: 1px solid var(--line); border-radius: 8px;
+    background:
+      linear-gradient(180deg, #1c271c 0%, #273420 46%, #34422a 48%, #3d4c2e 100%);
+  }
+  .calib__frame::before {
+    content: ""; position: absolute; left: 6%; right: 6%; top: 18%;
+    height: 64%; border: 1px solid rgba(255, 255, 255, .16);
+    border-radius: 2px;
+  }
+  .calib__frame::after {
+    content: ""; position: absolute; left: 50%; top: 18%; width: 1px;
+    height: 64%; background: rgba(255, 255, 255, .14);
+  }
+  .calib__tag {
+    position: absolute; left: 10px; top: 8px; z-index: 3;
+    font-size: 10px; color: rgba(255, 255, 255, .55);
+  }
+  .goalbox {
+    position: absolute; border: 2px solid var(--gold);
+    background: rgba(242, 185, 51, .09); z-index: 2;
+  }
+  .goalbox span {
+    position: absolute; left: -2px; top: -19px;
+    background: var(--gold); color: #1a1400; font-size: 10px; font-weight: 600;
+    padding: 1px 5px; border-radius: 4px 4px 0 0;
+  }
+  .goalbox--1 { left: 28%; top: 55%; width: 14%; height: 14%; }
+  .goalbox--2 { left: 66%; top: 56%; width: 12%; height: 13%; }
+  .coords {
+    font: 12px/1.7 Consolas, "Cascadia Mono", monospace;
+    color: var(--muted); margin: 8px 0 2px;
+  }
+
+  /* Batch: the file-level progress line above the bar. */
+  .fileprog {
+    display: flex; align-items: center; gap: 6px; margin: 8px 0 6px;
+    font-size: 12px; font-weight: 600; color: var(--text);
+  }
+  .fileprog .ico { color: var(--gold); }
+
+  /* 「高光片段」: one group header per video file, then its rows. */
+  .hlgroup {
+    display: flex; align-items: center; gap: 6px;
+    margin: 9px 0 2px; font-size: 12px; font-weight: 600; color: var(--text);
+  }
+  .hlgroup .ico { color: var(--gold); }
+  .hlgroup .n {
+    margin-left: auto; font-size: 11px; font-weight: 400; color: var(--faint);
+  }
+  .res--hl { cursor: pointer; }
+  .res--hl:hover { background: rgba(242, 185, 51, .05); }
+  .res--hl .play { font-size: 11px; color: var(--muted); }
+  .res--note .desc { color: var(--faint); }
+  .badgeom {
+    display: flex; align-items: center; gap: 6px; margin-left: auto;
+    font-size: 11px; color: #ffab40;
+  }
+</style>
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a>
+  <a href="main-window.html">主窗口</a>
+  <a href="template-editor.html">模板</a>
+  <a href="marking-dialogs.html">标注</a>
+  <a href="phone-marking.html">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <a href="ai-marking.html" class="on">AI 打点</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 2026-11</span>
+</nav>
+
+<div class="stage stage--top">
+  <div class="stack">
+
+    <p class="note" style="margin:0">
+      <b>入口当前是隐藏的（2026-10-30）</b>：控制面板「我要」里这一项被注释掉了（VLM 判定还不够准），
+      对话框与 <code>case 'ai'</code> 都还在，取消注释即可恢复。原入口位置：控制面板「我要」→「AI 打点」（在「手机打点」下面）。
+      对话框是模态的：点外面不关，只有「关闭」（顺带取消分析）与运行中的「取消」能退出。<b>支持多选</b>：一次选多个比赛视频，
+      按文件名排序后**逐个**跑同一个流程
+      <b>抽音频 → 算画面运动 → 找候选 → 逐段判定 → 完成</b>（一次只跑一个文件，不并发）。
+      候选以<b>画面运动为主判据</b>，声音只作辅助（两者取并集，每个候选记 src=motion|audio|both）。
+      每个文件的上限仍是 60 段、判定标准不变。跑完在对话框<b>上半部分</b>多一个
+      <b>「高光片段」</b>列表（按视频文件分组，标题带整批总数），候选列表保留在它下面、同样按文件分组。
+      模型只给建议，真正的写入发生在「保存为项目」：<b>所有文件写进同一个</b>
+      <code>.hlcproj</code>（`sources[]` 每个文件一条，`timeslots[].videoSourceId` 指向各自文件）。
+      可选步骤「标定球门」：在 30% 处的一帧上框出 1–2 个球门，批量开始时会自动把有标定的那个文件
+      的框写给其它文件（同一机位）。行为、阈值与容错以 <code>docs/ai_marking.md</code> 与
+      <code>ai_marking_dialog.dart</code> 为准。
+    </p>
+
+    <!-- ------------------------------------------------------- 1. judging -->
+    <div>
+      <div class="frame__cap">
+        <b>AI 打点 · 批量判定中</b>
+        <code>ai_marking_dialog.dart → _analyze() / _runFile()</code>
+        <span>· 进度两层：文件级在上、阶段级在下 · 取消随时中止整批</span>
+      </div>
+      <div class="modal">
+        <div class="modal__title"><span class="ico">✨</span>AI 打点</div>
+
+        <div class="field">
+          <span class="label">模型</span>
+          <input class="input" value="deepseek-v4.2-flash">
+          <div class="hint">deepseek-v4.2-flash / deepseek-v4.1-flash</div>
+        </div>
+        <div class="field">
+          <span class="label">DeepSeek API Key</span>
+          <div class="krow">
+            <input class="input" type="password" value="sk-0123456789abcdef">
+            <button class="btn btn--ghost btn--sm">👁 隐藏</button>
+          </div>
+        </div>
+
+        <div class="picker">
+          <label class="check"><input type="checkbox" checked> 记住</label>
+          <span class="grow"></span>
+          <button class="btn btn--sm">🎯 标定球门</button>
+          <button class="btn btn--sm">🎞 选择比赛视频</button>
+        </div>
+        <div class="filerow">
+          <span>🎬 已选 11 个文件（共 689.2 分钟）</span>
+          <span class="trail">支持 mp4 / mov / mkv</span>
+        </div>
+
+        <div class="fileprog"><span class="ico">🎬</span>第 2/11 个文件 · 已完成候选 47 段</div>
+        <div class="bar"><span style="width:58%"></span></div>
+        <div class="progress">
+          <span class="spinner"></span>
+          <span>逐段判定 20/47</span>
+          <span class="grow"></span>
+          <span class="pct">58%</span>
+        </div>
+
+        <div class="reshead">候选片段 <span class="trail">高光 5 / 47</span></div>
+        <div class="hlgroup"><span class="ico">🎬</span>GX01123.MP4<span class="n">24 段候选</span></div>
+        <div class="res">
+          <span class="t">00:12–00:20</span><span class="verd verd--hi">高光</span>
+          <span class="desc">10 号禁区外远射破门，球擦立柱入网</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="res">
+          <span class="t">01:44–01:52</span><span class="verd verd--hi">高光</span>
+          <span class="desc">门将单掌托出角球，随后队友解围</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="res">
+          <span class="t">02:31–02:39</span><span class="verd verd--plain">普通</span>
+          <span class="desc">中场倒脚，无射门</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+
+        <div class="note-mini">
+          进度条按阶段推进：抽音频 2% → 算画面运动 6% → 找候选 12% → 逐段判定 20%–100%，
+          再按文件数折算成整批进度（第 1 个文件跑完是 1/11）。文件级那一行只增不减，
+          阶段级那行沿用旧文案。单段失败只累加计数，不中断；单个文件失败显示
+          「N 个文件失败」并继续下一个文件。<b>跑完之前不显示「高光片段」</b>，免得正在判定的文件
+          被标成「无检出高光」。
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost">✕ 取消</button>
+          <button class="btn btn--ghost" disabled>保存为项目</button>
+          <button class="btn btn--ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------ 2. finished -->
+    <div>
+      <div class="frame__cap">
+        <b>AI 打点 · 批量完成（高光片段列表）</b>
+        <code>_analyze() → _highlightRows() / _saveProject()</code>
+        <span>· 高光区域在候选列表之上 · 按文件分组 · 点整行预览该文件的那一段</span>
+      </div>
+      <div class="modal">
+        <div class="modal__title"><span class="ico">✨</span>AI 打点</div>
+
+        <div class="field">
+          <span class="label">模型</span>
+          <input class="input" value="deepseek-v4.2-flash">
+          <div class="hint">deepseek-v4.2-flash / deepseek-v4.1-flash</div>
+        </div>
+        <div class="field">
+          <span class="label">DeepSeek API Key</span>
+          <div class="krow">
+            <input class="input" type="password" value="sk-0123456789abcdef">
+            <button class="btn btn--ghost btn--sm">👁 隐藏</button>
+          </div>
+        </div>
+
+        <div class="picker">
+          <label class="check"><input type="checkbox" checked> 记住</label>
+          <span class="grow"></span>
+          <button class="btn btn--sm">🎯 标定球门</button>
+          <button class="btn btn--sm">🎞 选择比赛视频</button>
+        </div>
+        <div class="filerow">
+          <span>🎬 已选 11 个文件（共 689.2 分钟）</span>
+          <span class="trail">支持 mp4 / mov / mkv</span>
+        </div>
+
+        <div class="fileprog"><span class="ico">🎬</span>第 11/11 个文件 · 已完成候选 512 段</div>
+        <div class="bar"><span style="width:100%"></span></div>
+        <div class="progress">
+          <span>完成</span>
+          <span class="grow"></span>
+          <span class="badgeom">1 个文件失败</span>
+          <span class="pct">100%</span>
+        </div>
+
+        <div class="reshead">高光片段 <span class="trail">共 3 段</span></div>
+        <div class="hlgroup"><span class="ico">🎬</span>GX01123.MP4<span class="n">2 段高光</span></div>
+        <div class="res res--hl">
+          <span class="t">00:12–00:20</span><span class="verd verd--hi">进球</span>
+          <span class="desc">10 号禁区外远射破门</span>
+          <span class="play">▶</span>
+        </div>
+        <div class="res res--hl">
+          <span class="t">01:44–01:52</span><span class="verd verd--hi">扑救</span>
+          <span class="desc">门将单掌托出角球</span>
+          <span class="play">▶</span>
+        </div>
+        <div class="hlgroup"><span class="ico">🎬</span>GX01124.MP4<span class="n">1 段高光</span></div>
+        <div class="res res--hl">
+          <span class="t">03:08–03:16</span><span class="verd verd--hi">射门</span>
+          <span class="desc">边路传中，头球攻门被扑出</span>
+          <span class="play">▶</span>
+        </div>
+        <div class="hlgroup"><span class="ico">🎬</span>part9.MP4<span class="n">0 段高光</span></div>
+        <div class="res res--note">
+          <span class="desc">无检出高光</span>
+        </div>
+        <div class="hlgroup"><span class="ico">🎬</span>part10.MP4<span class="n">0 段高光</span></div>
+        <div class="res res--note">
+          <span class="desc">已跳过（分析失败）</span>
+        </div>
+
+        <div class="reshead">候选片段 <span class="trail">高光 3 / 5</span></div>
+        <div class="hlgroup"><span class="ico">🎬</span>GX01123.MP4<span class="n">2 段候选</span></div>
+        <div class="res">
+          <span class="t">00:12–00:20</span><span class="verd verd--hi">高光</span>
+          <span class="desc">10 号禁区外远射破门</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="res">
+          <span class="t">01:44–01:52</span><span class="verd verd--hi">高光</span>
+          <span class="desc">门将单掌托出角球</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="hlgroup"><span class="ico">🎬</span>GX01124.MP4<span class="n">2 段候选</span></div>
+        <div class="res">
+          <span class="t">03:08–03:16</span><span class="verd verd--hi">高光</span>
+          <span class="desc">边路传中，头球攻门被扑出</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="res">
+          <span class="t">05:02–05:10</span><span class="verd verd--plain">普通</span>
+          <span class="desc">角球进攻被顶出</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="hlgroup"><span class="ico">🎬</span>part9.MP4<span class="n">1 段候选</span></div>
+        <div class="res">
+          <span class="t">02:31–02:39</span><span class="verd verd--plain">普通</span>
+          <span class="desc">中场倒脚，无射门</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="hlgroup"><span class="ico">🎬</span>part10.MP4<span class="n">0 段候选</span></div>
+        <div class="res res--note">
+          <span class="desc">已跳过（分析失败）</span>
+        </div>
+
+        <div class="saved">
+          ✔ 已保存到 C:\Users\me\HighlightCreator\results\ai_marking\GX01123-2026-10-25-112233.hlcproj
+        </div>
+
+        <div class="note-mini">
+          高光列表只列 <code>verdict=highlight</code> 的段；<b>0 段高光的文件也保留分组</b>，
+          写「无检出高光」，跳过（分析失败）的文件写「已跳过（分析失败）」——跑过的文件不会消失。
+          点任意一行用现有预览窗口播该段（用的是<b>该行所属文件</b>的路径，不是第一个文件）。
+          候选列表保留全部候选、同样按文件分组。保存时
+          <code>sources[]</code> 每个跑完的文件一条（跳过的文件不写），
+          <code>timeslots[].videoSourceId</code> 指向它自己的文件，rating 仍是高光 4 / 未判定 2。
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost">重新分析</button>
+          <button class="btn btn--primary">保存为项目</button>
+          <button class="btn btn--ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- -------------------------------------------- 3. degraded: no vision -->
+    <div>
+      <div class="frame__cap">
+        <b>AI 打点 · 模型不支持图片（降级）</b>
+        <code>_analyze() → on AiVisionUnsupported</code>
+        <span>· 顶部醒目提示 · 所有候选记为「未判定」· 仍可保存（rating 2）</span>
+      </div>
+      <div class="modal">
+        <div class="modal__title"><span class="ico">✨</span>AI 打点</div>
+
+        <div class="warn">该模型不支持图片输入，已只保留候选（未经 AI 判定）</div>
+
+        <div class="field">
+          <span class="label">模型</span>
+          <input class="input" value="deepseek-v4.1-flash">
+          <div class="hint">deepseek-v4.2-flash / deepseek-v4.1-flash</div>
+        </div>
+        <div class="field">
+          <span class="label">DeepSeek API Key</span>
+          <div class="krow">
+            <input class="input" type="password" value="sk-0123456789abcdef">
+            <button class="btn btn--ghost btn--sm">👁 显示</button>
+          </div>
+        </div>
+
+        <div class="picker">
+          <label class="check"><input type="checkbox"> 记住</label>
+          <span class="grow"></span>
+          <button class="btn btn--sm">🎯 标定球门</button>
+          <button class="btn btn--sm">🎞 选择比赛视频</button>
+        </div>
+        <div class="filerow">
+          <span>🎬 2026-10-25 联赛.MOV</span>
+          <span class="trail">支持 mp4 / mov / mkv</span>
+        </div>
+
+        <div class="bar"><span style="width:20%"></span></div>
+        <div class="progress">
+          <span>逐段判定 1/17</span>
+          <span class="grow"></span>
+          <span class="pct">20%</span>
+        </div>
+
+        <div class="reshead">候选片段 <span class="trail">高光 0 / 17</span></div>
+        <div class="hlgroup"><span class="ico">🎬</span>2026-10-25 联赛.MOV<span class="n">17 段候选</span></div>
+        <div class="res">
+          <span class="t">00:48–00:56</span><span class="verd verd--none">未判定</span>
+          <span class="desc">—</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="res">
+          <span class="t">02:10–02:18</span><span class="verd verd--none">未判定</span>
+          <span class="desc">—</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="res">
+          <span class="t">04:33–04:41</span><span class="verd verd--none">未判定</span>
+          <span class="desc">—</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+
+        <div class="note-mini">
+          同一条 4xx 会重复失败，所以第一次命中就停止后续请求；候选全部保留，保存时
+          rating 记为 2，path 与正常保存一致。
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost">重新分析</button>
+          <button class="btn btn--primary">保存为项目</button>
+          <button class="btn btn--ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- --------------------------------------- 4. degraded: no motion scan -->
+    <div>
+      <div class="frame__cap">
+        <b>AI 打点 · 画面运动不可用（降级）</b>
+        <code>_analyze() → motion unavailable</code>
+        <span>· 顶部提示 · 候选退化为纯声音 · 分析继续，仍可保存</span>
+      </div>
+      <div class="modal">
+        <div class="modal__title"><span class="ico">✨</span>AI 打点</div>
+
+        <div class="warn">画面运动不可用，仅用声音。</div>
+
+        <div class="field">
+          <span class="label">模型</span>
+          <input class="input" value="deepseek-v4.2-flash">
+          <div class="hint">deepseek-v4.2-flash / deepseek-v4.1-flash</div>
+        </div>
+
+        <div class="filerow">
+          <span>🎬 2026-10-25 联赛.MOV</span>
+          <span class="trail">支持 mp4 / mov / mkv</span>
+        </div>
+
+        <div class="bar"><span style="width:38%"></span></div>
+        <div class="progress">
+          <span>逐段判定 12/31</span>
+          <span class="grow"></span>
+          <span class="pct">38%</span>
+        </div>
+
+        <div class="reshead">候选片段 <span class="trail">高光 1 / 31</span></div>
+        <div class="hlgroup"><span class="ico">🎬</span>2026-10-25 联赛.MOV<span class="n">31 段候选</span></div>
+        <div class="res">
+          <span class="t">00:48–00:56</span><span class="verd verd--hi">高光</span>
+          <span class="desc">门将倒地没收远射</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+        <div class="res">
+          <span class="t">02:10–02:18</span><span class="verd verd--plain">普通</span>
+          <span class="desc">中场倒脚</span>
+          <button class="btn btn--ghost btn--sm">查看</button>
+        </div>
+
+        <div class="note-mini">
+          ffmpeg 跑不出 / 解析不到 YAVG 时只降级这一条通道：日志记一行
+          <code>motion unavailable</code>，<code>summary</code> 里
+          <code>motion_ok=false</code>，候选只剩声音通道，流程不中断。
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost">✕ 取消</button>
+          <button class="btn btn--ghost" disabled>保存为项目</button>
+          <button class="btn btn--ghost">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------ 5. goal calibration -->
+    <div>
+      <div class="frame__cap">
+        <b>AI 打点 · 球门标定</b>
+        <code>goal_calibration_dialog.dart → _prepare() / _save()</code>
+        <span>· 30% 处取一帧 · 拖 1–2 个框 · 再拖替换第 2 个 · 坐标 3 位小数</span>
+      </div>
+      <div class="modal">
+        <div class="modal__title"><span class="ico">⛶</span>球门标定</div>
+
+        <div class="note-mini" style="margin-top:0">
+          在画面上拖动框出球门，最多 2 个；再拖会替换第 2 个。抽帧失败时只显示
+          「无法取帧，标定不可用」并只能取消。
+        </div>
+
+        <div class="calib">
+          <div class="calib__frame">
+            <span class="calib__tag">temp\ai_marking\calib_frame.jpg · 30% 处</span>
+            <div class="goalbox goalbox--1"><span>1</span></div>
+            <div class="goalbox goalbox--2"><span>2</span></div>
+          </div>
+        </div>
+
+        <div class="coords">
+          <div>球门 1: x=0.312 y=0.604 w=0.118 h=0.084</div>
+          <div>球门 2: x=0.674 y=0.612 w=0.102 h=0.076</div>
+        </div>
+
+        <label class="check" style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:4px 0 0">
+          <input type="checkbox"> 应用到同目录所有视频
+        </label>
+
+        <div class="note-mini">
+          保存关闭后提示「已标定 2 个球门」；标定存
+          <code>%USERPROFILE%\HighlightCreator\calibration\&lt;sha1&gt;.json</code>（0..1 归一化）。
+          有标定时图2/图3 是两个球门区的放大画面，无标定时退回上半部/下半部；
+          相机被移动后标定失效，需要重标。多选时标的是<b>排序后的第一个文件</b>；批量开始时
+          若其它选中文件没有标定，会自动把这组框写给它们（界面提示「已将球门标定应用到 N 个文件」，
+          日志 <code>calib applied from=… files=N boxes=2</code>）。
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn btn--ghost">清除</button>
+          <button class="btn btn--primary">保存</button>
+          <button class="btn btn--ghost">取消</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

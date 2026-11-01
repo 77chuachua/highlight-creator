@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 主窗口</title>
+<link rel="stylesheet" href="assets/proto.css">
+<style>
+  /* Window chrome: the app is a single 1280x720 Win32 window
+     (windows/runner/main.cpp: Win32Window::Size size(1280, 720)). */
+  .win {
+    width: 1280px; height: 720px; flex: none; display: flex; flex-direction: column;
+    background: #101014; border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, .65); overflow: hidden;
+    font-size: 12px;
+  }
+  .topbar { height: 40px; flex: none; display: flex; align-items: center; gap: 8px;
+            padding: 0 10px; background: #1d1d22; border-bottom: 1px solid var(--line); }
+  .topbar .name { flex: 1; font-size: 13px; font-weight: 500; }
+  .appbody { flex: 1; min-height: 0; display: flex; }
+  .playerbox { flex: 3; min-width: 0; background: #000; position: relative;
+               display: grid; place-items: center; color: var(--faint); }
+  .playerbox .framehint { font-size: 12px; text-align: center; }
+  .playerbox .framehint .ico { font-size: 44px; opacity: .35; display: block; margin-bottom: 10px; }
+  .playerbox .pcap { position: absolute; left: 12px; top: 10px; font-size: 10px; color: var(--dim); }
+  .playctl { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center;
+             gap: 10px; padding: 8px 12px; background: linear-gradient(transparent, rgba(0,0,0,.75)); }
+  .playctl .time { font-size: 11px; color: rgba(255,255,255,.75); font-variant-numeric: tabular-nums; }
+  .playctl .seek { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.18); position: relative; }
+  .playctl .seek i { position: absolute; left: 0; top: 0; bottom: 0; width: 34%; background: var(--gold); border-radius: 2px; }
+  .collap { width: 20px; flex: none; background: #1d1d22; border-left: 1px solid var(--line);
+            border-right: 1px solid var(--line); display: grid; place-items: center; color: var(--faint); }
+  .rightcol { width: 320px; flex: none; overflow: hidden; background: #15151a;
+              border-left: 1px solid var(--line); }
+  .tp { border-bottom: 1px solid var(--line-soft); }
+  .tp__head { display: flex; align-items: center; gap: 7px; padding: 7px 10px 5px; font-weight: 600; font-size: 12px; }
+  .tp__head .acts { margin-left: auto; display: flex; gap: 6px; color: var(--muted); font-size: 13px; }
+  .tp__body { padding: 2px 10px 8px; }
+  .titem { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 4px; }
+  .titem.on { background: rgba(122, 162, 255, .16); }
+  .titem .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+  .titem .ic { color: var(--faint); font-size: 12px; }
+  .filesrow { display: flex; align-items: center; gap: 8px; padding: 5px 10px; }
+  .filesrow .fname { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .filesrow .fmeta { font-family: Consolas, monospace; font-size: 10px; color: var(--faint); }
+  .cp { flex: none; height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 10px;
+        background: #1a1a1f; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .cp .ib { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; color: var(--muted); }
+  .cp .markbtn { background: #ffa000; color: #1a1400; border: 0; border-radius: 7px;
+                 padding: 8px 14px; font: inherit; font-weight: 600; font-size: 12px; }
+  .cp .speedbox { width: 75px; }
+  .cp .speedbox .lab { font-size: 9px; color: var(--faint); }
+  .cp .speedbox .val { font-size: 11px; }
+  .cp .want { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+              border-radius: 8px; background: rgba(122,162,255,.16);
+              border: 1px solid rgba(255,255,255,.12); font-weight: 600; }
+  .trackbar { height: 22px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 10px;
+              background: #1a1a1f; color: rgba(255,255,255,.7); font-size: 11px; }
+  .trackbar .cur { color: var(--faint); font-size: 10px; flex: 1; }
+  .trackline { height: 64px; flex: none; background: #131318; position: relative; border-top: 1px solid var(--line); }
+  .trackline .seg { position: absolute; top: 22px; height: 26px; border-radius: 3px; }
+  .slotbar { height: 20px; flex: none; display: grid; place-items: center; background: #1a1a1f; color: var(--faint); }
+  .table { flex: none; height: 200px; background: #141419; font-size: 11px; overflow: hidden; }
+  .table .thead, .table .trow { display: flex; align-items: center; gap: 8px; padding: 5px 10px; }
+  .table .thead { color: var(--faint); border-bottom: 1px solid var(--line); }
+  .table .trow { border-bottom: 1px solid var(--line-soft); }
+  .table .trow:nth-child(2) { background: rgba(122,162,255,.06); }
+  .c-no { width: 26px; } .c-desc { flex: 1; min-width: 0; }
+  .c-file { width: 108px; color: var(--faint); } .c-time { width: 150px; font-variant-numeric: tabular-nums; }
+  .c-el { width: 52px; } .c-rem { width: 40px; text-align: center; } .c-rate { width: 44px; color: var(--gold); }
+  .c-color { width: 34px; } .c-act { width: 62px; text-align: right; color: var(--muted); }
+  .statusline { height: 24px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 10px;
+                background: #1d1d22; color: var(--faint); font-size: 11px; }
+  .statusline .sep { color: var(--dim); }
+  .statusline .ver { margin-left: auto; }
+  .popover { position: absolute; background: #232329; border: 1px solid rgba(255,255,255,.12);
+             border-radius: 8px; box-shadow: 0 18px 40px rgba(0,0,0,.6); padding: 6px; z-index: 3; }
+  .popover .pi { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 5px;
+                 font-size: 12px; white-space: nowrap; }
+  .popover .pi.dis { color: var(--dim); }
+  .popover .di { height: 1px; background: var(--line); margin: 4px 2px; }
+  .stage--top > div { position: relative; }
+  .caption { width: 1280px; flex: none; color: var(--muted); font-size: 12px; margin: 26px 0 8px; }
+  .caption b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a>
+  <a href="main-window.html" class="on">主窗口</a>
+  <a href="template-editor.html">模板</a>
+  <a href="marking-dialogs.html">标注</a>
+  <a href="phone-marking.html">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <a href="ai-marking.html">AI 打点</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 2026-11</span>
+</nav>
+
+<div class="stage stage--top">
+  <div>
+    <div class="note">
+      <b>主窗口</b> —— <code>main_window.dart</code>。单窗口，Win32 初始尺寸 <code>1280×720</code>
+      （<code>windows/runner/main.cpp</code>）。自上而下：40px 工具栏（项目菜单 / 项目名 / 设置）、
+      3:右侧栏主体（左播放器 + 20px 折叠条 + 320px 右栏）、56px 控制条（跳转 / 标记 / 速度 / 「我要」）、
+      22px 时间轴标题（默认收起）、20px 折叠条 + 200px 时间片段表、24px 状态栏。
+      右栏自上而下是 源文件 与 开场 / 转场 / 结尾 / 背景音乐 四组模板面板（<code>CollapsiblePanel</code>）。
+      <br>快捷键：空格 播放/暂停，←/→ ±5s，Ctrl+M 标记，Ctrl+G 前往时间，Ctrl+S 保存，Ctrl+T 模板编辑器。
+    </div>
+
+    <!-- ============================================================ state A -->
+    <div class="win">
+      <div class="topbar">
+        <span class="iconbtn">📁</span>
+        <span class="name">2026-W43 联赛</span>
+        <span class="iconbtn">⚙</span>
+      </div>
+
+      <div class="appbody">
+        <div class="playerbox">
+          <div class="framehint">
+            <span class="ico">🎬</span>
+            <span class="faint" style="font-size:11px">match01.mp4 · 1920×1080 · 25fps</span>
+          </div>
+          <div class="pcap">正在播放 · 00:02:05.200</div>
+          <div class="playctl">
+            <span class="time">00:02:05 / 00:28:41</span>
+            <span class="seek"><i></i></span>
+            <span class="time">🔊 · 1.0x</span>
+            <span class="time">⛶</span>
+          </div>
+        </div>
+
+        <div class="collap">›</div>
+
+        <div class="rightcol">
+          <div class="tp">
+            <div class="tp__head"><span>📄</span>源文件<span class="acts">＋</span></div>
+            <div class="tp__body">
+              <div class="filesrow"><span class="fname">match01.mp4</span><span class="fmeta">28:41 · 1920×1080</span></div>
+              <div class="filesrow"><span class="fname">match02.mp4</span><span class="fmeta">31:05 · 1920×1080</span></div>
+              <div class="filesrow"><span class="fname">phone_cam.mp4</span><span class="fmeta">09:12 · 1280×720</span></div>
+            </div>
+          </div>
+
+          <div class="tp">
+            <div class="tp__head"><span>🎞</span>开场模板<span class="acts">⚙ ＋</span></div>
+            <div class="tp__body">
+              <div class="titem on"><span class="ic">◉</span><span class="ic">🎞</span><span class="nm">联赛开场 · 金色</span><span class="ic">✎ ▶ 🗑</span></div>
+              <div class="titem"><span class="ic">○</span><span class="ic">🎞</span><span class="nm">联赛开场 · 简洁</span><span class="ic">✎ ▶ 🗑</span></div>
+            </div>
+          </div>
+
+          <div class="tp">
+            <div class="tp__head"><span>✨</span>转场模板<span class="acts">⚙ ＋</span></div>
+            <div class="tp__body">
+              <div class="titem on"><span class="ic">◉</span><span class="ic">✨</span><span class="nm">拉丝转场</span><span class="ic">▶ 🗑</span></div>
+              <div class="titem"><span class="ic">○</span><span class="ic">✨</span><span class="nm">闪白</span><span class="ic">▶ 🗑</span></div>
+            </div>
+          </div>
+
+          <div class="tp">
+            <div class="tp__head"><span>🏁</span>结尾模板<span class="acts">⚙ ＋</span></div>
+            <div class="tp__body">
+              <div class="titem on"><span class="ic">◉</span><span class="ic">🏁</span><span class="nm">下期见</span><span class="ic">✎ ▶ 🗑</span></div>
+            </div>
+          </div>
+
+          <div class="tp">
+            <div class="tp__head"><span>🎵</span>背景音乐<span class="acts">＋</span></div>
+            <div class="tp__body">
+              <div class="titem on"><span class="ic">◉</span><span class="ic">🎵</span><span class="nm">stadium_rock.mp3</span><span class="ic">🗑</span></div>
+              <div class="titem"><span class="ic">○</span><span class="ic">🎵</span><span class="nm">calm_piano.mp3</span><span class="ic">🗑</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cp">
+        <span class="ib">⏪</span>
+        <span class="ib" style="font-size:20px">⏸</span>
+        <span class="ib">⏩</span>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <button class="markbtn">🚩 标记 (Ctrl+M)</button>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <span class="speedbox"><span class="lab">速度</span><span class="val">1.0x ▾</span></span>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <span class="want">💡 我要 ▾</span>
+      </div>
+
+      <div class="trackbar">▸ ⏱ 时间轴<span class="cur">match01.mp4</span></div>
+
+      <div class="slotbar">▾</div>
+      <div class="table">
+        <div class="thead">
+          <span class="c-no">#</span><span class="c-desc">描述</span><span class="c-file">文件名</span>
+          <span class="c-time">时间</span><span class="c-el">耗时</span><span class="c-rem">远端</span>
+          <span class="c-rate">★</span><span class="c-color">颜色</span><span class="c-act">操作</span>
+        </div>
+        <div class="trow">
+          <span class="c-no">1</span><span class="c-desc">01 老庄没收皮球</span><span class="c-file">match01.mp4</span>
+          <span class="c-time">00:02:03.400 – 00:02:11.400</span><span class="c-el">8.0s</span>
+          <span class="c-rem">●</span><span class="c-rate">★★★★★</span><span class="c-color">🟡</span><span class="c-act">✎ 🗑</span>
+        </div>
+        <div class="trow">
+          <span class="c-no">2</span><span class="c-desc">02 小王远射破门</span><span class="c-file">match01.mp4</span>
+          <span class="c-time">00:05:41.200 – 00:05:48.700</span><span class="c-el">7.5s</span>
+          <span class="c-rem">—</span><span class="c-rate">★★★★☆</span><span class="c-color">🟠</span><span class="c-act">✎ 🗑</span>
+        </div>
+        <div class="trow">
+          <span class="c-no">3</span><span class="c-desc">03 老庄头球攻门</span><span class="c-file">match02.mp4</span>
+          <span class="c-time">00:08:32.000 – 00:08:38.800</span><span class="c-el">6.8s</span>
+          <span class="c-rem">●</span><span class="c-rate">★★★★☆</span><span class="c-color">🟡</span><span class="c-act">✎ 🗑</span>
+        </div>
+        <div class="trow">
+          <span class="c-no">4</span><span class="c-desc">04 门将飞身扑救</span><span class="c-file">phone_cam.mp4</span>
+          <span class="c-time">00:11:28.300 – 00:11:36.500</span><span class="c-el">8.2s</span>
+          <span class="c-rem">—</span><span class="c-rate">★★★☆☆</span><span class="c-color">🔵</span><span class="c-act">✎ 🗑</span>
+        </div>
+        <div class="trow">
+          <span class="c-no">5</span><span class="c-desc">05 意外乌龙</span><span class="c-file">match02.mp4</span>
+          <span class="c-time">00:13:21.700 – 00:13:28.700</span><span class="c-el">7.0s</span>
+          <span class="c-rem">—</span><span class="c-rate">★★★☆☆</span><span class="c-color">⚪</span><span class="c-act">✎ 🗑</span>
+        </div>
+      </div>
+
+      <div class="statusline">
+        <span>项目: 2026-W43 联赛</span><span class="sep">│</span>
+        <span>3 个源文件</span><span class="sep">│</span>
+        <span>5 个时间片段</span>
+        <span class="ver">Highlight Creator v0.1.4.0</span>
+      </div>
+    </div>
+
+    <div class="caption"><b>状态 B · 时间轴展开 + 「我要」菜单</b> —— 点时间轴标题展开（
+      <code>TimelineTrack</code>：刻度尺 + 缩略图 + 可拖动片段块 + 播放头）；「我要」在控制条右侧，
+      分三组：制作 / 5佳球·10佳球，手机打点 / 打开成品文件夹 / 查看缓存，时间片段分类明细 / 跳转到指定时间。
+      （AI 打点菜单项当前在代码里被注释隐藏，见 <a href="ai-marking.html">AI 打点</a>。）</div>
+
+    <div class="win">
+      <div class="topbar">
+        <span class="iconbtn">📁</span>
+        <span class="name">2026-W43 联赛</span>
+        <span class="iconbtn">⚙</span>
+      </div>
+      <div class="appbody">
+        <div class="playerbox">
+          <div class="framehint">
+            <span class="ico">🎬</span>
+            <span class="faint" style="font-size:11px">match01.mp4 · 1920×1080 · 25fps</span>
+          </div>
+          <div class="playctl">
+            <span class="time">00:02:05 / 00:28:41</span>
+            <span class="seek"><i></i></span>
+            <span class="time">🔊 · 1.0x</span>
+          </div>
+        </div>
+        <div class="collap">›</div>
+        <div class="rightcol">
+          <div class="tp">
+            <div class="tp__head"><span>📄</span>源文件<span class="acts">＋</span></div>
+            <div class="tp__body">
+              <div class="filesrow"><span class="fname">match01.mp4</span><span class="fmeta">28:41 · 1920×1080</span></div>
+              <div class="filesrow"><span class="fname">match02.mp4</span><span class="fmeta">31:05 · 1920×1080</span></div>
+              <div class="filesrow"><span class="fname">phone_cam.mp4</span><span class="fmeta">09:12 · 1280×720</span></div>
+            </div>
+          </div>
+          <div class="tp">
+            <div class="tp__head"><span>🎞</span>开场模板<span class="acts">⚙ ＋</span></div>
+            <div class="tp__body">
+              <div class="titem on"><span class="ic">◉</span><span class="ic">🎞</span><span class="nm">联赛开场 · 金色</span><span class="ic">✎ ▶ 🗑</span></div>
+              <div class="titem"><span class="ic">○</span><span class="ic">🎞</span><span class="nm">联赛开场 · 简洁</span><span class="ic">✎ ▶ 🗑</span></div>
+            </div>
+          </div>
+          <div class="tp">
+            <div class="tp__head"><span>✨</span>转场模板<span class="acts">⚙ ＋</span></div>
+            <div class="tp__body">
+              <div class="titem on"><span class="ic">◉</span><span class="ic">✨</span><span class="nm">拉丝转场</span><span class="ic">▶ 🗑</span></div>
+            </div>
+          </div>
+          <div class="tp">
+            <div class="tp__head"><span>🏁</span>结尾模板<span class="acts">⚙ ＋</span></div>
+            <div class="tp__body">
+              <div class="titem on"><span class="ic">◉</span><span class="ic">🏁</span><span class="nm">下期见</span><span class="ic">✎ ▶ 🗑</span></div>
+            </div>
+          </div>
+          <div class="tp">
+            <div class="tp__head"><span>🎵</span>背景音乐<span class="acts">＋</span></div>
+            <div class="tp__body">
+              <div class="titem on"><span class="ic">◉</span><span class="ic">🎵</span><span class="nm">stadium_rock.mp3</span><span class="ic">🗑</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cp" style="position:relative">
+        <span class="ib">⏪</span><span class="ib" style="font-size:20px">⏸</span><span class="ib">⏩</span>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <button class="markbtn">🚩 标记 (Ctrl+M)</button>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <span class="speedbox"><span class="lab">速度</span><span class="val">1.0x ▾</span></span>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <span class="want" style="outline:1px solid rgba(122,162,255,.5)">💡 我要 ▾</span>
+
+        <div class="popover" style="left:300px; bottom:46px; width:236px">
+          <div class="pi">🛠 制作</div>
+          <div class="pi">🏆 5佳球 / 10佳球</div>
+          <div class="di"></div>
+          <div class="pi">📱 手机打点</div>
+          <div class="pi">📂 打开成品文件夹</div>
+          <div class="pi">🧹 查看缓存</div>
+          <div class="di"></div>
+          <div class="pi">🧾 时间片段分类明细</div>
+          <div class="pi">🎯 跳转到指定时间</div>
+        </div>
+      </div>
+
+      <div class="trackbar">▾ ⏱ 时间轴<span class="cur">match01.mp4</span></div>
+      <div class="trackline">
+        <div class="seg" style="left:10px; width:330px; background:rgba(122,162,255,.28); border:1px solid rgba(122,162,255,.5)"></div>
+        <div class="seg" style="left:350px; width:300px; background:rgba(78,201,160,.26); border:1px solid rgba(78,201,160,.5)"></div>
+        <div class="seg" style="left:660px; width:352px; background:rgba(242,185,51,.22); border:1px solid rgba(242,185,51,.5)"></div>
+        <div class="seg" style="left:1022px; width:238px; background:rgba(255,138,128,.2); border:1px solid rgba(255,138,128,.5)"></div>
+        <div style="position:absolute; left:0; right:0; top:16px; height:1px; background:rgba(255,255,255,.12)"></div>
+        <div style="position:absolute; left:236px; top:12px; bottom:8px; width:2px; background:var(--gold)"></div>
+        <div style="position:absolute; left:10px; right:12px; bottom:6px; display:flex; justify-content:space-between; color:var(--faint); font-size:10px">
+          <span>match01 · 28:41</span><span>match02 · 31:05</span><span>phone_cam · 09:12</span>
+        </div>
+      </div>
+
+      <div class="slotbar">▾</div>
+      <div class="table">
+        <div class="thead">
+          <span class="c-no">#</span><span class="c-desc">描述</span><span class="c-file">文件名</span>
+          <span class="c-time">时间</span><span class="c-el">耗时</span><span class="c-rem">远端</span>
+          <span class="c-rate">★</span><span class="c-color">颜色</span><span class="c-act">操作</span>
+        </div>
+        <div class="trow">
+          <span class="c-no">1</span><span class="c-desc">01 老庄没收皮球</span><span class="c-file">match01.mp4</span>
+          <span class="c-time">00:02:03.400 – 00:02:11.400</span><span class="c-el">8.0s</span>
+          <span class="c-rem">●</span><span class="c-rate">★★★★★</span><span class="c-color">🟡</span><span class="c-act">✎ 🗑</span>
+        </div>
+        <div class="trow">
+          <span class="c-no">2</span><span class="c-desc">02 小王远射破门</span><span class="c-file">match01.mp4</span>
+          <span class="c-time">00:05:41.200 – 00:05:48.700</span><span class="c-el">7.5s</span>
+          <span class="c-rem">—</span><span class="c-rate">★★★★☆</span><span class="c-color">🟠</span><span class="c-act">✎ 🗑</span>
+        </div>
+        <div class="trow">
+          <span class="c-no">3</span><span class="c-desc">03 老庄头球攻门</span><span class="c-file">match02.mp4</span>
+          <span class="c-time">00:08:32.000 – 00:08:38.800</span><span class="c-el">6.8s</span>
+          <span class="c-rem">●</span><span class="c-rate">★★★★☆</span><span class="c-color">🟡</span><span class="c-act">✎ 🗑</span>
+        </div>
+      </div>
+
+      <div class="statusline">
+        <span>项目: 2026-W43 联赛</span><span class="sep">│</span>
+        <span>3 个源文件</span><span class="sep">│</span>
+        <span>5 个时间片段</span>
+        <span class="ver">Highlight Creator v0.1.4.0</span>
+      </div>
+    </div>
+
+    <div class="caption"><b>状态 C · 空项目</b> —— 播放器未加载视频时的空态（<code>player_screen.dart</code>
+      「未加载视频 / 打开视频」），以及右栏源文件为空时的提示（<code>source_file_list.dart</code>）。</div>
+
+    <div class="win" style="height:auto">
+      <div class="topbar">
+        <span class="iconbtn">📁</span>
+        <span class="name">New Project</span>
+        <span class="iconbtn">⚙</span>
+      </div>
+      <div class="appbody" style="height:360px">
+        <div class="playerbox">
+          <div class="framehint">
+            <span class="ico">🎞</span>
+            <span style="display:block; margin-bottom:10px">未加载视频</span>
+            <button class="btn btn--primary">打开视频</button>
+          </div>
+        </div>
+        <div class="collap">›</div>
+        <div class="rightcol">
+          <div class="tp">
+            <div class="tp__head"><span>📄</span>源文件<span class="acts">＋</span></div>
+            <div class="tp__body" style="padding:18px 10px; text-align:center">
+              <div class="muted" style="font-size:13px">无视频文件</div>
+              <div class="faint" style="font-size:11px; margin-top:4px">点击 ＋ 添加</div>
+              <button class="btn btn--sm" style="margin-top:10px">添加视频文件</button>
+            </div>
+          </div>
+          <div class="tp">
+            <div class="tp__head"><span>🎞</span>开场模板<span class="acts">⚙ ＋</span></div>
+            <div class="tp__body faint" style="font-size:11px; padding:8px 10px">未配置模板。</div>
+          </div>
+          <div class="tp">
+            <div class="tp__head"><span>🎵</span>背景音乐<span class="acts">＋</span></div>
+            <div class="tp__body faint" style="font-size:11px; padding:8px 10px">未配置模板。</div>
+          </div>
+        </div>
+      </div>
+      <div class="cp">
+        <span class="ib">⏪</span><span class="ib" style="font-size:20px">▶</span><span class="ib">⏩</span>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <button class="markbtn" disabled>🚩 标记 (Ctrl+M)</button>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <span class="speedbox"><span class="lab">速度</span><span class="val">1.0x ▾</span></span>
+        <span style="width:1px;height:26px;background:rgba(255,255,255,.1)"></span>
+        <span class="want">💡 我要 ▾</span>
+      </div>
+      <div class="trackbar">▸ ⏱ 时间轴<span class="cur">0 source(s)</span></div>
+      <div class="slotbar">▾</div>
+      <div class="table" style="height:150px">
+        <div class="thead">
+          <span class="c-no">#</span><span class="c-desc">描述</span><span class="c-file">文件名</span>
+          <span class="c-time">时间</span><span class="c-el">耗时</span><span class="c-rem">远端</span>
+          <span class="c-rate">★</span><span class="c-color">颜色</span><span class="c-act">操作</span>
+        </div>
+        <div class="trow" style="display:block; text-align:center; padding:30px 10px; color:var(--faint)">
+          暂无时间片段。<br>使用标记按钮添加。
+        </div>
+      </div>
+      <div class="statusline">
+        <span>无项目</span><span class="sep">│</span><span>0 个源文件</span><span class="sep">│</span>
+        <span>0 个时间片段</span>
+        <span class="ver">Highlight Creator v0.1.4.0</span>
+      </div>
+    </div>
+
+    <div class="caption">右上 <b>📁</b> 是项目菜单：新建项目 / 保存项目 / 加载项目 / 关闭项目（Ctrl+N / Ctrl+S / Ctrl+O / Ctrl+Q）；
+      <b>⚙</b> 打开设置（见 <a href="settings.html">设置</a>）。未保存时关闭会弹「未保存的更改 / 放弃 / 取消 / 保存」。</div>
+
+    <div class="caption"><b>状态 D · 系统级 AlertDialog</b> —— 主窗口里直接弹出的三个确认框（<code>main_window.dart</code>：
+      <code>_showNewProjectDialog()</code> / <code>_confirmUnsavedChanges()</code> / <code>_maybePromptStoreUpdate()</code>）。
+      新建项目：输入名称后「创建」；未保存：关闭 / 新建 / 载入 / 关闭项目前都先问一次；
+      发现新版本：只在 Store 装的应用上出现，「以后再说」按版本记住，不再重复打扰。</div>
+
+    <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start">
+      <div class="dlg dlg--auto" style="width:400px">
+        <div class="dlg__head"><div class="title" style="font-size:14px">新建项目</div></div>
+        <div class="divider"></div>
+        <div class="dlg__body" style="padding:14px 20px">
+          <div class="input" style="background:#0a0a0c; border:1px solid rgba(255,255,255,.12); color:var(--faint)">项目名称</div>
+        </div>
+        <div class="dlg__foot">
+          <div class="grow"></div>
+          <button class="btn btn--ghost">取消</button>
+          <button class="btn btn--primary">创建</button>
+        </div>
+      </div>
+
+      <div class="dlg dlg--auto" style="width:420px">
+        <div class="dlg__head"><div class="title" style="font-size:14px">未保存的更改</div></div>
+        <div class="divider"></div>
+        <div class="dlg__body" style="padding:14px 20px">
+          <span class="muted" style="font-size:12px">您有未保存的更改。是否在继续之前保存？</span>
+        </div>
+        <div class="dlg__foot">
+          <div class="grow"></div>
+          <button class="btn btn--ghost">放弃</button>
+          <button class="btn btn--ghost">取消</button>
+          <button class="btn btn--primary">保存</button>
+        </div>
+      </div>
+
+      <div class="dlg dlg--auto" style="width:440px">
+        <div class="dlg__head"><div class="title" style="font-size:14px">发现新版本</div></div>
+        <div class="divider"></div>
+        <div class="dlg__body" style="padding:14px 20px">
+          <span class="muted" style="font-size:12px">Microsoft Store 上有新版本的 Highlight Creator 可用。<br><br>0.1.5.0</span>
+        </div>
+        <div class="dlg__foot">
+          <div class="grow"></div>
+          <button class="btn btn--ghost">以后再说</button>
+          <button class="btn btn--primary">去更新</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

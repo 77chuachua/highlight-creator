@@ -12,9 +12,12 @@ import 'package:highlight_creator/domain/entities/timeslot.dart';
 import 'package:highlight_creator/presentation/player/player_view_model.dart';
 import 'package:highlight_creator/presentation/player/record_view_model.dart';
 import 'package:highlight_creator/presentation/shell/cache_dialog.dart';
+import 'package:highlight_creator/presentation/shell/ai_marking_dialog.dart';
 import 'package:highlight_creator/presentation/shell/go_to_dialog.dart';
+import 'package:highlight_creator/presentation/shell/phone_marking_dialog.dart';
 import 'package:highlight_creator/presentation/shell/preview_dialog.dart';
 import 'package:highlight_creator/presentation/shell/zoom_in_point_dialog.dart';
+import 'package:highlight_creator/presentation/shell/template_editor_dialog.dart';
 import 'package:highlight_creator/presentation/shell/template_state.dart';
 import 'package:highlight_creator/presentation/shell/clip_breakdown_dialog.dart';
 import 'package:highlight_creator/presentation/shell/top5_dialog.dart';
@@ -131,6 +134,12 @@ class ControlPanel extends ConsumerWidget {
                 case 'top5':
                   openTop5Dialog(context, ref);
                   break;
+                case 'phone':
+                  unawaited(PhoneMarkingDialog.show(context));
+                  break;
+                case 'ai':
+                  unawaited(AiMarkingDialog.show(context));
+                  break;
                 case 'breakdown':
                   openClipBreakdownDialog(context, ref);
                   break;
@@ -140,7 +149,7 @@ class ControlPanel extends ConsumerWidget {
               }
             },
             // Three groups, in the order the work happens: make something,
-            // then go look at it, then the per-slot tools.
+            // then the project-level tools, then the per-slot tools.
             itemBuilder: (context) => [
               PopupMenuItem(
                 value: 'make',
@@ -167,6 +176,36 @@ class ControlPanel extends ConsumerWidget {
                 ),
               ),
               PopupMenuDivider(),
+              // Phone marking: the phone marks against a 720p proxy while the
+              // desktop keeps the original (docs/phone_marking.md).
+              PopupMenuItem(
+                value: 'phone',
+                child: Row(
+                  children: [
+                    Icon(Icons.qr_code_2, size: 16),
+                    SizedBox(width: 8),
+                    Text(l10n.menuPhoneMarking),
+                  ],
+                ),
+              ),
+              // Hidden until the AI marking flow is finished: the VLM verdict is
+              // not reliable enough yet (8% correct on real footage). Keep the
+              // case below and the dialog file so the work is not lost;
+              // re-enable this menu item to get back to it.
+              //
+              // The original note for this entry (docs/ai_marking.md): the model
+              // proposes candidates, the user still confirms; nothing is written
+              // until 「保存为项目」.
+              // PopupMenuItem(
+              //   value: 'ai',
+              //   child: Row(
+              //     children: [
+              //       Icon(Icons.auto_awesome_outlined, size: 16),
+              //       SizedBox(width: 8),
+              //       Text(l10n.menuAiMarking),
+              //     ],
+              //   ),
+              // ),
               PopupMenuItem(
                 value: 'result',
                 child: Row(
@@ -398,6 +437,11 @@ class ControlPanel extends ConsumerWidget {
 
     final projectRoot = resolveProjectRoot();
     final outputDir = '${AppPaths.resultsDir}\\';
+
+    // A template edited in the Make dialog flushes its debounced saves when the
+    // editor closes; wait for them here so this render reads the parameters the
+    // user just set instead of the pre-edit row.
+    await TemplateEditorDialog.pendingWrites;
 
     final templateRepo = ref.read(templateRepositoryProvider);
     final selected = ref.read(selectedTemplatesProvider);

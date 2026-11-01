@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 手机打点</title>
+<link rel="stylesheet" href="assets/proto.css">
+<style>
+  /* Narrow modals: same local pattern as dialogs.html (AlertDialog, not .dlg). */
+  .stack { width: 1140px; margin: 0 auto; display: flex; flex-direction: column; gap: 34px; }
+  .frame__cap {
+    font-size: 12px; color: var(--faint); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .frame__cap b { color: var(--text); font-weight: 600; }
+  .frame__cap code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; font-size: 11px; color: var(--gold);
+  }
+
+  /* AlertDialog: content 420 wide + 24px padding each side => 468 outer. */
+  .pm {
+    width: 468px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: 0 22px 60px rgba(0, 0, 0, .6);
+    padding: 18px 24px 12px;
+  }
+  .pm__title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; margin-bottom: 12px;
+  }
+  .pm__title .ico { font-size: 17px; color: var(--text); line-height: 1; }
+  .pm__hint { font-size: 12px; line-height: 1.7; color: var(--muted); }
+
+  /* QR: white 208 box, 192 code, placeholder drawn with CSS only. */
+  .pm__qrwrap { display: flex; flex-direction: column; align-items: center; margin: 12px 0; }
+  .qrbox {
+    width: 208px; height: 208px; border-radius: 8px; background: #fff;
+    display: grid; place-items: center;
+  }
+  .qr {
+    position: relative; width: 192px; height: 192px;
+    background-image: repeating-conic-gradient(#0a0a0c 0 25%, #ffffff 0 50%);
+    background-size: 16px 16px;
+  }
+  .qr .eye {
+    position: absolute; width: 44px; height: 44px; background: #fff;
+    display: grid; place-items: center;
+  }
+  .qr .eye::before {
+    content: ""; display: block; width: 30px; height: 30px;
+    border: 7px solid #0a0a0c; border-radius: 2px;
+  }
+  .eye--tl { left: 0; top: 0; }
+  .eye--tr { right: 0; top: 0; }
+  .eye--bl { left: 0; bottom: 0; }
+  .qr--off { font-size: 64px; line-height: 1; color: rgba(0, 0, 0, .26); }
+  .pm__scan { margin-top: 6px; font-size: 11px; color: var(--muted); }
+
+  /* _InfoRow: 72px label + Consolas value. */
+  .pm__row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
+  .pm__label { width: 72px; flex: none; font-size: 11px; color: var(--muted); line-height: 1.9; }
+  .pm__value {
+    flex: 1; min-width: 0; font-family: Consolas, "Courier New", monospace;
+    font-size: 12px; line-height: 1.75; word-break: break-all;
+  }
+  .pm__row .btn--sm { margin-top: 2px; flex: none; }
+
+  .pm__state { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); flex: none; }
+  .dot--on { background: var(--green); }
+
+  .pm__warn { font-size: 11px; line-height: 1.7; color: var(--red-soft); margin-top: 6px; }
+  .pm__note { font-size: 11px; line-height: 1.7; color: var(--muted); margin-top: 8px; }
+
+  .pm__actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<nav class="pagenav">
+  <a href="index.html">总览</a>
+  <a href="main-window.html">主窗口</a>
+  <a href="template-editor.html">模板</a>
+  <a href="marking-dialogs.html">标注</a>
+  <a href="phone-marking.html" class="on">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
+  <a href="top5-picker.html">五佳球·选择</a>
+  <a href="top5-editor.html">解说</a>
+  <a href="top5-generated.html">已生成</a>
+  <span class="sep">/</span>
+  <a href="dialogs.html">对话框</a>
+  <a href="studio.html">语音工作室</a>
+  <a href="ai-marking.html">AI 打点</a>
+  <span class="spacer"></span>
+  <span class="tag">静态原型 · 2026-11</span>
+</nav>
+
+<div class="stage stage--top">
+  <div class="stack">
+
+    <div class="note">
+      <b>手机打点</b> —— <code>phone_marking_dialog.dart → PhoneMarkingDialog</code>，
+      由控制面板「我要」里的「手机打点」打开（<code>control_panel.dart → case 'phone'</code>）。
+      实现是 <code>AlertDialog</code>，内容宽 420，标题图标 <code>qr_code_2</code>；
+      打开对话框就自动启动服务，<b>关掉对话框不停服务</b>，必须显式点「停止」。
+      固定端口 17331，令牌 6 位（去掉了易混的 0/1/o/l），二维码内容就是
+      <code>http://&lt;局域网IP&gt;:17331/?t=&lt;token&gt;</code>。
+      行为与参数（720p 代理、令牌校验、<code>/api/*</code>）以
+      <code>docs/phone_marking.md</code> 为准。
+      <br>四段状态都在这一页：运行中 / 已停止 / 运行中但没局域网且项目为空 / 启动失败。
+      下面四个框是同一个对话框的四种数据状态，<b>不是四个页面</b>。
+    </div>
+
+    <!-- ------------------------------------------------------------ A 运行中 -->
+    <div>
+      <div class="frame__cap">
+        <b>变体 A · 运行中</b>
+        <code>phone_marking_dialog.dart → build()</code>
+        <span>· 二维码 + 地址 + 令牌齐全 · 主按钮:停止 · 关闭不拦服务</span>
+      </div>
+      <div class="pm">
+        <div class="pm__title"><span class="ico">▦</span>手机打点</div>
+        <div class="pm__hint">手机需要和电脑在同一个 Wi-Fi。Windows 首次提示防火墙时，请允许「专用网络」。</div>
+
+        <div class="pm__qrwrap">
+          <div class="qrbox">
+            <div class="qr">
+              <span class="eye eye--tl"></span>
+              <span class="eye eye--tr"></span>
+              <span class="eye eye--bl"></span>
+            </div>
+          </div>
+          <div class="pm__scan">用手机扫描二维码打开</div>
+        </div>
+
+        <div class="pm__row">
+          <div class="pm__label">监听地址</div>
+          <div class="pm__value">http://192.168.1.23:17331/</div>
+          <button class="btn btn--ghost btn--sm">⧉ 复制</button>
+        </div>
+        <div class="pm__row">
+          <div class="pm__label">令牌</div>
+          <div class="pm__value">k7m2xq</div>
+          <button class="btn btn--ghost btn--sm">⧉ 复制</button>
+        </div>
+
+        <div class="pm__state"><span class="dot dot--on"></span>服务运行中</div>
+
+        <div class="pm__actions">
+          <button class="btn btn--ghost">关闭</button>
+          <button class="btn btn--primary">停止</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------------ B 已停止 -->
+    <div>
+      <div class="frame__cap">
+        <b>变体 B · 已停止</b>
+        <code>phone_marking_dialog.dart → _stop() 之后</code>
+        <span>· 二维码区只剩占位图标、不再显示扫码提示 · 地址与令牌都显示「—」· 主按钮:打开</span>
+      </div>
+      <div class="pm">
+        <div class="pm__title"><span class="ico">▦</span>手机打点</div>
+        <div class="pm__hint">手机需要和电脑在同一个 Wi-Fi。Windows 首次提示防火墙时，请允许「专用网络」。</div>
+
+        <div class="pm__qrwrap">
+          <div class="qrbox"><span class="qr--off">▦</span></div>
+        </div>
+
+        <div class="pm__row">
+          <div class="pm__label">监听地址</div>
+          <div class="pm__value">—</div>
+          <button class="btn btn--ghost btn--sm">⧉ 复制</button>
+        </div>
+        <div class="pm__row">
+          <div class="pm__label">令牌</div>
+          <div class="pm__value">—</div>
+          <button class="btn btn--ghost btn--sm">⧉ 复制</button>
+        </div>
+
+        <div class="pm__state"><span class="dot"></span>服务已停止</div>
+
+        <div class="pm__actions">
+          <button class="btn btn--ghost">关闭</button>
+          <button class="btn btn--primary">打开</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------- C 运行中 · 无局域网 + 空项目 -->
+    <div>
+      <div class="frame__cap">
+        <b>变体 C · 运行中（无局域网地址 + 项目没有片源）</b>
+        <code>phone_marking_dialog.dart → lanAddress == null / sources.isEmpty</code>
+        <span>· 两行条件提示按代码顺序叠在状态下面：先红字提示，再「当前项目还没有片源。」</span>
+      </div>
+      <div class="pm">
+        <div class="pm__title"><span class="ico">▦</span>手机打点</div>
+        <div class="pm__hint">手机需要和电脑在同一个 Wi-Fi。Windows 首次提示防火墙时，请允许「专用网络」。</div>
+
+        <div class="pm__qrwrap">
+          <div class="qrbox">
+            <div class="qr">
+              <span class="eye eye--tl"></span>
+              <span class="eye eye--tr"></span>
+              <span class="eye eye--bl"></span>
+            </div>
+          </div>
+          <div class="pm__scan">用手机扫描二维码打开</div>
+        </div>
+
+        <div class="pm__row">
+          <div class="pm__label">监听地址</div>
+          <div class="pm__value">http://localhost:17331/</div>
+          <button class="btn btn--ghost btn--sm">⧉ 复制</button>
+        </div>
+        <div class="pm__row">
+          <div class="pm__label">令牌</div>
+          <div class="pm__value">k7m2xq</div>
+          <button class="btn btn--ghost btn--sm">⧉ 复制</button>
+        </div>
+
+        <div class="pm__state"><span class="dot dot--on"></span>服务运行中</div>
+        <div class="pm__warn">没有找到局域网地址，已回退到 localhost；手机无法访问。</div>
+        <div class="pm__note">当前项目还没有片源。</div>
+
+        <div class="pm__actions">
+          <button class="btn btn--ghost">关闭</button>
+          <button class="btn btn--primary">停止</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- --------------------------------------------------------- D 启动失败 -->
+    <div>
+      <div class="frame__cap">
+        <b>变体 D · 启动失败</b>
+        <code>phone_marking_dialog.dart → _start() catch</code>
+        <span>· 对话框不关，红字追加在状态下面 · 服务没起来，所以按钮仍是「打开」</span>
+      </div>
+      <div class="pm">
+        <div class="pm__title"><span class="ico">▦</span>手机打点</div>
+        <div class="pm__hint">手机需要和电脑在同一个 Wi-Fi。Windows 首次提示防火墙时，请允许「专用网络」。</div>
+
+        <div class="pm__qrwrap">
+          <div class="qrbox"><span class="qr--off">▦</span></div>
+        </div>
+
+        <div class="pm__row">
+          <div class="pm__label">监听地址</div>
+          <div class="pm__value">—</div>
+          <button class="btn btn--ghost btn--sm">⧉ 复制</button>
+        </div>
+        <div class="pm__row">
+          <div class="pm__label">令牌</div>
+          <div class="pm__value">—</div>
+          <button class="btn btn--ghost btn--sm">⧉ 复制</button>
+        </div>
+
+        <div class="pm__state"><span class="dot"></span>服务已停止</div>
+        <div class="pm__warn">启动失败: SocketException: Failed to bind to 0.0.0.0:17331</div>
+
+        <div class="pm__actions">
+          <button class="btn btn--ghost">关闭</button>
+          <button class="btn btn--primary">打开</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>原型说明</b>：代码里 <code>_InfoRow</code> 是 <code>SelectableText</code>（选中即可复制），
+      本页按评审需要额外画了「复制」按钮；落地时按钮与可选文本并存即可。
+      二维码用纯 CSS 占位（实际由 <code>qr_flutter</code> 在 Flutter 里画，纯 Dart、不联网），
+      统一放在 208×208 的白底圆角框里，扫码内容与「监听地址 + 令牌」拼出的 URL 一致。
+      手机端页面（片源列表 / 代理进度 / 播放器）不在本页范围，见 <code>phone_marking_server.dart</code> 内嵌的 HTML 与 <code>docs/phone_marking.md</code>。
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

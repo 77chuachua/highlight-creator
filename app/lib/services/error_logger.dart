@@ -15,6 +15,23 @@ class ErrorLogger {
         'error-${now.year}${two(now.month)}${two(now.day)}.log');
   }
 
+  /// Append one already-formatted line, without the timestamp/stack framing.
+  ///
+  /// For features that leave a machine-parsable trace in the same daily file
+  /// (`[ai-marking] ...`, docs/ai_marking.md §Logging), so a run can be
+  /// replayed with grep instead of guessing. Never throws.
+  static void line(String text) {
+    try {
+      _currentFile().writeAsStringSync(
+        '$text\n',
+        mode: FileMode.append,
+        flush: true,
+      );
+    } catch (_) {
+      // ponytail: swallow — a broken log file must not take the app down.
+    }
+  }
+
   /// Write one entry. Never throws: logging must not become a crash source.
   static void log(Object error, StackTrace? stack, {String source = 'app'}) {
     try {

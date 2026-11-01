@@ -117,6 +117,10 @@ class LocalVoiceService {
   /// it renders the sentence with that clip's delivery first (cross-lingual
   /// zero-shot), then swaps the timbre for [reference] with a voice
   /// conversion. Without it the plain zero-shot path runs.
+  ///
+  /// [seed] picks one rendering of the sentence: the engine samples tokens, so
+  /// a new seed is a new take. Leave it null to use the engine's default, which
+  /// keeps a render reproducible.
   static Future<LocalVoiceResult> speak({
     required String text,
     required String promptText,
@@ -125,6 +129,7 @@ class LocalVoiceService {
     String? prosodyReference,
     double speed = 1,
     String? instruct,
+    int? seed,
   }) async {
     // Every exit records why: the dialog used to swallow the reason, and the
     // hidden snackbar was the only place the user could have read it.
@@ -147,6 +152,7 @@ class LocalVoiceService {
       if (speed != 1) 'speed': speed,
       if (instruct != null && instruct.trim().isNotEmpty)
         'instruct': instruct.trim(),
+      if (seed != null) 'seed': seed,
     });
     final reply = Completer<Map<String, dynamic>>();
     _pending = reply;

@@ -109,6 +109,58 @@ class TemplateGeneratorService {
     return null;
   }
 
+  /// The design-set key a template *file* belongs to, e.g. `green`, `nocturne`,
+  /// `aurora`, `blue`.
+  ///
+  /// [setOfPath] only knows the sets this build ships, matched on their exact
+  /// file names. Everything else in a user's registry — the legacy blue/yellow
+  /// packs, a downloaded online set cached as `plugin_<id>_<rev>.mp4`, an
+  /// imported `myPack_startup.mp4` — has no [DesignSet] to look up, yet it is
+  /// still one choice the user expects to drag its transition and ending
+  /// along. For those the key is derived from the file name: drop the plugin
+  /// prefix and the revision suffix, then drop the type word. Returns null when
+  /// the name carries no type wording at all.
+  static String? setKeyOfPath(String path) {
+    if (path.isEmpty) return null;
+    final known = setOfPath(path);
+    if (known != null) return known.id;
+
+    var name = path.split(RegExp(r'[\\/]')).last.toLowerCase();
+    final dot = name.lastIndexOf('.');
+    if (dot > 0) name = name.substring(0, dot);
+
+    // `plugin_<id>_<revision>`: the id itself is `<pack>-<type>` and the
+    // revision is author-controlled (`1`, `v2`, a sha prefix — see
+    // RemoteScriptRef.revision), so everything after the type word belongs to
+    // the cache key rather than to the pack.
+    final plugin = RegExp(
+      r'^plugin_(.+?)[-_](startup|ending|transition)(?:_.*)?$',
+    ).firstMatch(name);
+    if (plugin != null) {
+      final pack = _trimSeparators(plugin.group(1)!);
+      return pack.isEmpty ? null : pack;
+    }
+
+    const types = ['startup', 'transition', 'ending'];
+    var sawType = false;
+    for (final type in types) {
+      if (RegExp('^$type[-_]').hasMatch(name)) {
+        name = name.replaceFirst(RegExp('^$type[-_]'), '');
+        sawType = true;
+      }
+      if (RegExp('[-_]' + type + r'$').hasMatch(name)) {
+        name = name.replaceFirst(RegExp('[-_]' + type + r'$'), '');
+        sawType = true;
+      }
+    }
+    name = _trimSeparators(name);
+    if (!sawType || name.isEmpty) return null;
+    return name;
+  }
+
+  static String _trimSeparators(String s) =>
+      s.replaceAll(RegExp(r'^[-_]+|[-_]+$'), '');
+
   static const List<TemplateSpec> allSpecs = [
     _greenStartup,
     _greenEnding,

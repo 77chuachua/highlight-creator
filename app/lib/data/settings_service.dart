@@ -100,6 +100,24 @@ class SettingsService {
     await _save();
   }
 
+  /// DeepSeek API key for 「AI 打点」 (docs/ai_marking.md). Empty when the user
+  /// did not tick 记住: the dialog must start blank on the next launch.
+  Future<String> get aiMarkingApiKey async {
+    await _ensureLoaded();
+    return (_data['aiMarkingApiKey'] as String?) ?? '';
+  }
+
+  Future<void> setAiMarkingApiKey(String value) async {
+    await _ensureLoaded();
+    // Storing an empty key means "forget it", not "remember an empty string".
+    if (value.isEmpty) {
+      _data.remove('aiMarkingApiKey');
+    } else {
+      _data['aiMarkingApiKey'] = value;
+    }
+    await _save();
+  }
+
   Future<void> _save() async {
     try {
       final file = File(_path);

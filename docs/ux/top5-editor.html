@@ -8,15 +8,22 @@
 <body>
 
 <nav class="pagenav">
-  <a href="index.html">总览</a><span class="sep">/</span>
+  <a href="index.html">总览</a>
+  <a href="main-window.html">主窗口</a>
+  <a href="template-editor.html">模板</a>
+  <a href="marking-dialogs.html">标注</a>
+  <a href="phone-marking.html">手机打点</a>
+  <a href="settings.html">设置</a>
+  <span class="sep">/</span>
   <a href="top5-picker.html">五佳球·选择</a>
   <a href="top5-editor.html" class="on">解说</a>
   <a href="top5-generated.html">已生成</a>
   <span class="sep">/</span>
   <a href="dialogs.html">对话框</a>
   <a href="studio.html">语音工作室</a>
+  <a href="ai-marking.html">AI 打点</a>
   <span class="spacer"></span>
-  <span class="tag">静态原型 · 1140×720</span>
+  <span class="tag">静态原型 · 2026-11</span>
 </nav>
 
 <div class="stage stage--top">
@@ -26,6 +33,24 @@
       顶部是解说语音行（系统语音 + 语音包，文案格式 <code>语音包 · 我的声音 · 7.0 秒</code>），
       下面是视频预览（flex 3）与解说卡片（flex 2）。卡片里有片段标题、预览按钮、
       解说输入框、试听按钮与当前解说状态。
+      预览：整个对话框只用<b>一个</b> <code>Player</code> + 一个 <code>VideoController</code>；
+      点别的片段只 <code>open</code> 新 <code>Media</code>（浮层显示「准备片段 / 加载播放器」，
+      <code>Video</code> 始终挂着不卸载）；<b>点同一片段直接播放/续播</b>，不再走切片、也不再显示「准备片段」；
+      打开失败时视频区显示错误文字而不是黑屏。对话框是模态的（点外面不关），
+      退出用底部的 取消 / 关闭 或右上角 ✕。
+      <br><b>试听即抽卡</b>：克隆质量每次都有波动。语音行下面多了一行 <code>seed</code> 输入框
+      （默认 <code>50</code>，范围 <code>0 – 4294967295</code>）：填什么种子就用什么种子抽，
+      同一 seed + 同一句台词 + 同一语音包会得到同一版；超出范围时输入框描边变红，
+      右侧提示变成 <code>⚠ seed 必须是 0 – 4294967295 之间的整数</code>，此时「试听」和「生成」都会拒绝执行。
+      听到满意的那一版会被保存为这份解说的 take，状态行变成
+      <code>解说:我的声音(本地克隆 · 用已试听版本)</code>；点「生成」时台词和语音包没变就直接用这份 take，
+      不再克隆。改了台词或换了语音包，take 失效，生成时才重新克隆。
+      <br>试听右边的 <b>▶</b>（「播放上次试听」）直接播放保存下来的那一版，<b>不重新克隆</b>；
+      还没有 take（或台词改过）时它是灰的，点不动。▶ 右边的 <code>seed 1734567890</code>
+      是这一版的种子，填到语音工作室的 seed 输入框就能复现同一版。
+      <br><b>黑屏排查</b>：预览两次都拿不到画面时，视频区会显示「画面没有出来(已记录日志),再点一次 ▶ 重新加载播放器」，
+      日志里对应 <code>[top5] preview=no_picture …</code> / <code>preview=black …</code>，
+      带 w/h/duration/mpv 原始报错；换新播放器后成功的记为 <code>preview=recovered retry=1</code>。
     </div>
 
     <div class="dlg">
@@ -59,6 +84,17 @@
           <button class="btn btn--ghost">ⓘ 语音包指南</button>
         </div>
 
+        <!-- seed row -->
+        <div class="voice-row" style="margin-top:8px">
+          <span style="width:2px"></span>
+          <span class="label">seed</span>
+          <div style="width:8px"></div>
+          <input class="input" value="50"
+                 style="width:130px; background: var(--ink); border:1px solid rgba(255,255,255,.12)">
+          <div style="width:10px"></div>
+          <span class="faint" style="font-size:11px">范围 0 – 4294967295，默认 50</span>
+        </div>
+
         <!-- error strip (optional; shown to document the state) -->
         <div class="error-strip">
           <span class="ico">⚠</span>
@@ -72,7 +108,7 @@
             <div class="cap">01 老庄没收皮球 · 1280×720</div>
             <div>
               <span class="ico">▶</span>
-              点右侧 ▶ 预览片段
+              点右侧 ▶ 预览片段（同一片段再点 = 直接播放）
             </div>
           </div>
 
@@ -87,7 +123,9 @@
               <textarea class="input" rows="1">老庄这脚球太漂亮了</textarea>
               <div class="card__foot">
                 <span style="font-size:14px">🔊</span>
-                <span class="state">解说:我的声音(本地克隆)</span>
+                <span style="font-size:13px" title="播放上次试听">▶</span>
+                <span style="font-size:9px;color:var(--faint);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px">seed 1734567890</span>
+                <span class="state">解说:我的声音(本地克隆 · 用已试听版本)</span>
               </div>
             </div>
 
@@ -100,6 +138,7 @@
               <textarea class="input" rows="1">小王这脚远射角度太刁了</textarea>
               <div class="card__foot">
                 <span style="font-size:14px">🔊</span>
+                <span style="font-size:13px" title="播放上次试听">▶</span>
                 <span class="state">解说:我的声音(本地克隆)</span>
               </div>
             </div>
@@ -113,6 +152,7 @@
               <textarea class="input" rows="1">又是老庄,头球砸进死角</textarea>
               <div class="card__foot">
                 <span style="font-size:14px">🔊</span>
+                <span class="faint" style="font-size:13px" title="还没有试听版本">▶</span>
                 <span class="state">解说:我的声音(本地克隆)</span>
               </div>
             </div>
@@ -126,6 +166,7 @@
               <textarea class="input" rows="1" placeholder="解说 · 成片里念出来"></textarea>
               <div class="card__foot">
                 <span style="font-size:14px">🔊</span>
+                <span class="faint" style="font-size:13px" title="还没有试听版本">▶</span>
                 <span class="state">未填解说词</span>
               </div>
             </div>
@@ -139,6 +180,24 @@
         <div class="grow"></div>
         <button class="btn btn--ghost">返回</button>
         <button class="btn btn--primary">🎬 生成 5佳进球</button>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:22px">
+      <b>seed 越界时的同一个控件</b> —— 输入 <code>4294967296</code>（或非数字）后，
+      输入框描边变红、右侧提示换成红色告警；「试听」与「生成」在修正前直接拒绝执行（提示条给出同一句话）。
+    </div>
+
+    <div class="dlg dlg--auto" style="width:1140px">
+      <div class="dlg__body" style="padding:16px 20px">
+        <div class="voice-row">
+          <span class="label">seed</span>
+          <div style="width:8px"></div>
+          <input class="input" value="4294967296"
+                 style="width:130px; background: var(--ink); border:1px solid #f04a4a">
+          <div style="width:10px"></div>
+          <span style="font-size:11px; color:#ff8a80">⚠ seed 必须是 0 – 4294967295 之间的整数</span>
+        </div>
       </div>
     </div>
   </div>

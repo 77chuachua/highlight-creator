@@ -13,6 +13,28 @@ Nothing downloaded is code. A script is an **ffmpeg filtergraph** — the same
 `geq` / `drawtext` / `fade` language the built-in scenes are written in — and it
 is vetted before ffmpeg sees it.
 
+## Picking a pack
+
+A startup, a transition and an ending that share one look are one choice: pick
+the startup and the set's transition and ending follow, in the template config
+dialog and in the Make dialog alike. The other two are only left alone when the
+user picks a transition or an ending by hand afterwards.
+
+The three files of a pack are recognised by name, so packs this build never
+shipped work too:
+
+| File name | Pack key |
+|---|---|
+| `startup_green.mp4` / `ending_green_theme.mp4` / `transition_green.mp4` | `green` (built-in spec names) |
+| `startup_blue.mp4` / `transition_blue.mp4` / `ending_blue.mp4` | `blue` (legacy packs still in the registry) |
+| `plugin_aurora-startup_<revision>.mp4` | `aurora` (downloaded online set) |
+
+Per-template parameters (placeholder text, font size, colour, position,
+"show text") are saved on the registry row for that file
+(`%USERPROFILE%\HighlightCreator\templates.json`), and Make reads that row when
+it renders — so an edit made from the Make dialog's editor applies to that same
+render.
+
 ## Catalogue format
 
 ```json

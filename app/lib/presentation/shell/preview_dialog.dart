@@ -116,8 +116,17 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
     if (tmpl != null && tmpl.showText && text.isNotEmpty) {
       final vps = widget.service;
       if (vps != null) {
+        // The stamp covers every input that changes the burned text: tweaking
+        // only the size / colour / position renders a NEW clip instead of
+        // re-encoding over one a previous preview player may still hold.
+        final stamp = Object.hash(
+          text,
+          tmpl.fontSize,
+          tmpl.fontColor,
+          tmpl.textPosition,
+        ).toRadixString(16);
         final out = '${_tempDir.path}${Platform.pathSeparator}'
-            'preview_${index}_${text.hashCode}.mp4';
+            'preview_${index}_$stamp.mp4';
         final yExpr = VideoProcessingService.textYExpr(
           tmpl.textPosition,
           transition: tmpl.type == TemplateType.transition,
@@ -169,8 +178,11 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
         initialCategory: _typeToCategory(type),
       ),
     );
-    // Reload after the editor closes so the preview shows the saved changes.
-    _reloadPreviews();
+    // The editor flushes its debounced saves from dispose(); wait for them so
+    // the reload below (and the render that follows this dialog) reads the
+    // parameters the user just typed instead of the pre-edit row.
+    await TemplateEditorDialog.pendingWrites;
+    await _reloadPreviews();
   }
 
   /// Change which template a row renders, from inside the Make dialog.
@@ -184,20 +196,22 @@ class _PreviewDialogState extends ConsumerState<PreviewDialog> {
     } else {
       notifier.select(type, id);
     }
-    _reloadPreviews();
+    await _reloadPreviews();
   }
 
   /// Drop the cached players and re-resolve every row from the repository.
-  void _reloadPreviews() {
-    if (!mounted) return;
-    for (final p in _players) {
-      unawaited(p?.dispose());
-    }
+  Future<void> _reloadPreviews() async {
+    final old = [..._players];
     for (var i = 0; i < _players.length; i++) {
       _players[i] = null;
       _controllers[i] = null;
       _loading[i] = true;
     }
+    // Dispose before the rows render again: a player still holding a preview
+    // file can make ffmpeg fail to write the re-encoded overlay, which left the
+    // card showing the previous font size / colour.
+    await Future.wait([for (final p in old) if (p != null) p.dispose()]);
+    if (!mounted) return;
     setState(() {
       _templatesFuture = _loadTemplates();
     });
